@@ -21,7 +21,7 @@ choices still require a compatibility or contract decision.
 | [Deterministic ordering and bounded result selection](../internals/batch.md) | Planned |
 | [Explicit predicate support](../reference/tools.md) | Planned |
 | [Coherent file reads and cancellation lifecycle](../internals/lifecycle.md) | Planned |
-| [MCP protocol compatibility policy](protocol-compatibility.md) | Open |
+| [MCP protocol compatibility policy](protocol-compatibility.md) | Accepted |
 | [Request-local batch sharing and aggregation](../internals/batch.md) | Planned |
 | [Batch admission, fairness and shared budgets](../internals/batch.md) | Planned |
 | [Versioned OpenCode integration](../integrations/opencode-v2.md) | Open |
