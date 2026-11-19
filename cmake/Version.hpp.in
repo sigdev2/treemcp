@@ -1,0 +1,10 @@
+#ifndef TREEMCP_VERSION_HPP
+#define TREEMCP_VERSION_HPP
+
+namespace treemcp {
+
+constexpr const char* VERSION = "@PROJECT_VERSION@";
+
+} // namespace treemcp
+
+#endif // TREEMCP_VERSION_HPP

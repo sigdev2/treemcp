@@ -1,0 +1,39 @@
+# Build outputs and machine-specific settings.
+/build/
+/install/
+/cmake-build-*/
+/.local/
+/CMakeUserPresets.json
+/CMakeLists.txt.user*
+
+# Editor, interpreter and operating-system caches.
+/.cache/
+/.idea/
+/.vs/
+/.vscode/
+*.user
+__pycache__/
+*.py[cod]
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Credentials and private environment files; public templates use placeholders.
+.env
+.env.*
+!.env.example
+*.local.env
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+credentials.json
+
+# Logs, crash dumps and accidental in-source CMake outputs.
+*.log
+*.dmp
+/CMakeCache.txt
+/CMakeFiles/
+/compile_commands.json

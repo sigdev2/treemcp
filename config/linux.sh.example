@@ -1,0 +1,2 @@
+export CMAKE_PREFIX_PATH='<qt-kit>'
+export CMAKE_BUILD_PARALLEL_LEVEL=4
