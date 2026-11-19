@@ -2,6 +2,7 @@
 
 #include "LanguageRegistry.hpp"
 #include "Query.hpp"
+#include "Workspace.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -161,7 +162,7 @@ Result findMatches(TSNode root, QByteArrayView source, const CompiledQuery& comp
 
 } // namespace
 
-Result run(const QString& name, const QJsonObject& arguments)
+Result run(const QString& name, const QJsonObject& arguments, const WorkspaceNode& workspace)
 {
     const auto* grammar = LanguageRegistry::getLanguage(arguments.value("language").toString());
     if (!grammar) {
@@ -184,7 +185,16 @@ Result run(const QString& name, const QJsonObject& arguments)
                                  { "patternCount", qint64 { ts_query_pattern_count(compiled.query.get()) } } };
         }
     }
-    const QByteArray source = arguments.value("source").toString().toUtf8();
+    QByteArray source;
+    if (arguments.contains("path")) {
+        auto read = readWorkspaceFile(workspace, arguments.value("path").toString());
+        if (const auto* error = std::get_if<QString>(&read)) {
+            return *error;
+        }
+        source = std::get<QByteArray>(std::move(read));
+    } else {
+        source = arguments.value("source").toString().toUtf8();
+    }
     const Parser parser { ts_parser_new(), ts_parser_delete };
     if (!parser || !ts_parser_set_language(parser.get(), grammar->language)) {
         return QStringLiteral("Cannot initialize parser");

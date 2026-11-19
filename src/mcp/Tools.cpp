@@ -44,6 +44,17 @@ QString validateArguments(const QJsonObject& schema, QJsonObject& arguments)
             return QStringLiteral("Unknown argument: %1").arg(it.key().left(80));
         }
     }
+    const QJsonArray alternatives = schema.value("oneOf").toArray();
+    if (!alternatives.isEmpty()) {
+        int selected = 0;
+        for (const auto option : alternatives) {
+            const QString key = option.toObject().value("required").toArray().first().toString();
+            selected += arguments.contains(key) ? 1 : 0;
+        }
+        if (selected != 1) {
+            return QStringLiteral("Select exactly one source input");
+        }
+    }
     const QJsonArray required = schema.value("required").toArray();
     for (auto it = properties.begin(); it != properties.end(); ++it) {
         const QString key = it.key();
@@ -53,7 +64,9 @@ QString validateArguments(const QJsonObject& schema, QJsonObject& arguments)
             if (required.contains(key)) {
                 return QStringLiteral("Missing argument: %1").arg(key);
             }
-            arguments.insert(key, spec.value("default"));
+            if (spec.contains("default")) {
+                arguments.insert(key, spec.value("default"));
+            }
         } else if (spec.value("type") == "string") {
             if (!value.isString() || (spec.contains("enum") && !spec.value("enum").toArray().contains(value))) {
                 return QStringLiteral("Invalid value for %1").arg(key);
@@ -102,7 +115,7 @@ QJsonObject list(const QJsonValue& id, const QJsonObject& params)
     return JsonRpc::success(id, { { "tools", catalog() } });
 }
 
-QJsonObject call(const QJsonValue& id, const QJsonObject& params)
+QJsonObject call(const QJsonValue& id, const QJsonObject& params, const WorkspaceNode& root)
 {
     const QJsonValue name = params.value("name");
     const QJsonValue arguments = params.value("arguments");
@@ -122,7 +135,8 @@ QJsonObject call(const QJsonValue& id, const QJsonObject& params)
         if (!error.isEmpty()) {
             return toolError(id, error);
         }
-        const SingleFile::Result result = name == "languages" ? languageList() : SingleFile::run(name.toString(), args);
+        const SingleFile::Result result =
+            name == "languages" ? languageList() : SingleFile::run(name.toString(), args, root);
         if (const auto* failure = std::get_if<QString>(&result)) {
             return toolError(id, *failure);
         }

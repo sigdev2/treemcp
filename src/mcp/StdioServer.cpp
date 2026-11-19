@@ -52,7 +52,7 @@ bool writeReply(const QJsonObject& reply)
 
 } // namespace
 
-int run(QCoreApplication& application)
+int run(QCoreApplication& application, const WorkspaceNode& root)
 {
 #ifdef Q_OS_WIN
     if (_setmode(_fileno(stdout), _O_BINARY) < 0) {
@@ -62,7 +62,7 @@ int run(QCoreApplication& application)
 #else
     std::signal(SIGPIPE, SIG_IGN);
 #endif
-    Session session;
+    Session session(root);
     Framer framer;
     const Framer::Receiver receive = [&session](QByteArrayView frame) {
         const auto reply = session.handle(frame);

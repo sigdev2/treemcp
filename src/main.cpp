@@ -2,6 +2,7 @@
 
 #include "SelfCheck.hpp"
 #include "StdioServer.hpp"
+#include "WorkspaceNode.hpp"
 
 #include <QCommandLineParser>
 #include <QCoreApplication>
@@ -24,6 +25,12 @@ int main(int argc, char* argv[])
         QStringLiteral("self-check"),
         QStringLiteral("Check the embedded Tree-sitter runtime and grammars, then exit."));
     arguments.addOption(selfCheckOption);
+    const QCommandLineOption workspaceOption(
+        QStringLiteral("workspace-root"),
+        QStringLiteral("Directory for workspace tools (default: current directory)."),
+        QStringLiteral("directory"),
+        QStringLiteral("."));
+    arguments.addOption(workspaceOption);
 
     QTextStream diagnostics(stderr);
     if (!arguments.parse(application.arguments())) {
@@ -43,7 +50,12 @@ int main(int argc, char* argv[])
         return 2;
     }
     if (!arguments.isSet(selfCheckOption)) {
-        return treemcp::StdioServer::run(application);
+        const auto root = treemcp::WorkspaceNode::openRoot(arguments.value(workspaceOption));
+        if (root.kind() != treemcp::NodeKind::Directory) {
+            diagnostics << "Cannot open workspace root directory.\n";
+            return 2;
+        }
+        return treemcp::StdioServer::run(application, root);
     }
 
     QTimer::singleShot(0, &application, []() {

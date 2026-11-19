@@ -59,7 +59,7 @@ std::optional<QJsonObject> Session::dispatch(const JsonRpc::Request& request)
         return Tools::list(id, params);
     }
     if (request.method == "tools/call") {
-        return Tools::call(id, params);
+        return Tools::call(id, params, root);
     }
     return JsonRpc::error(id, -32601, QStringLiteral("Method not found"));
 }

@@ -40,8 +40,16 @@ add_library(treemcp_core STATIC
     src/mcp/Tools.cpp
     src/search/Query.cpp
     src/search/SingleFile.cpp
+    src/workspace/Workspace.cpp
+    src/workspace/WorkspaceNode.cpp
 )
-target_include_directories(treemcp_core PUBLIC src/app src/languages src/mcp src/search "${PROJECT_BINARY_DIR}/generated")
+if(WIN32)
+    target_sources(treemcp_core PRIVATE src/workspace/WorkspaceWindows.cpp)
+    target_link_libraries(treemcp_core PRIVATE ntdll)
+else()
+    target_sources(treemcp_core PRIVATE src/workspace/WorkspacePosix.cpp)
+endif()
+target_include_directories(treemcp_core PUBLIC src/app src/languages src/mcp src/search src/workspace "${PROJECT_BINARY_DIR}/generated")
 target_link_libraries(treemcp_core PUBLIC Qt6::Core tree_sitter tree_sitter_cpp tree_sitter_python)
 target_link_libraries(treemcp_core PRIVATE yyjson Threads::Threads)
 treemcp_set_warnings(treemcp_core)

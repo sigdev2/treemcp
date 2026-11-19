@@ -1,6 +1,6 @@
 {
   "name": "structural_search",
-  "description": "Find structural matches and named captures in one inline source using a Tree-sitter query.",
+  "description": "Find structural matches and named captures in one inline source or workspace file using a Tree-sitter query.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -8,6 +8,7 @@
         "type": "string",
         "enum": ["cpp", "python"]
       },
+      "path": { "type": "string", "minLength": 1, "maxLength": 4096, "x-maxUtf8Bytes": 4096 },
       "source": {
         "type": "string",
         "minLength": 0,
@@ -27,7 +28,8 @@
         "default": 100
       }
     },
-    "required": ["language", "source", "query"],
+    "oneOf": [{ "required": ["source"] }, { "required": ["path"] }],
+    "required": ["language", "query"],
     "additionalProperties": false
   },
   "outputSchema": {

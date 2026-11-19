@@ -1,6 +1,6 @@
 {
   "name": "syntax_tree",
-  "description": "Inspect the syntax nodes of one inline source in preorder. Depth zero is the root.",
+  "description": "Inspect the syntax nodes of one inline source or workspace file in preorder. Depth zero is the root.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -8,6 +8,7 @@
         "type": "string",
         "enum": ["cpp", "python"]
       },
+      "path": { "type": "string", "minLength": 1, "maxLength": 4096, "x-maxUtf8Bytes": 4096 },
       "source": {
         "type": "string",
         "minLength": 0,
@@ -27,7 +28,8 @@
         "default": 256
       }
     },
-    "required": ["language", "source"],
+    "oneOf": [{ "required": ["source"] }, { "required": ["path"] }],
+    "required": ["language"],
     "additionalProperties": false
   },
   "outputSchema": {

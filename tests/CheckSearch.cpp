@@ -69,8 +69,9 @@ void checkTree(const ToolCall& call)
     args.insert("source", QString(262145, QChar(0xe9)));
     require(call("syntax_tree", args).value("isError") == true, "Source byte limit ignored");
     require(
-        call("syntax_tree", { { "language", "cpp" }, { "path", "example.cpp" } }).value("isError") == true,
-        "Unexpected path argument accepted");
+        call("syntax_tree", { { "language", "cpp" }, { "path", "example.cpp" }, { "source", "" } }).value("isError") ==
+            true,
+        "Conflicting source and path accepted");
 }
 
 void checkMatches(const ToolCall& call)

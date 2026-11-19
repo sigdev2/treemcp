@@ -3,10 +3,14 @@
 
 class QCoreApplication;
 
+namespace treemcp {
+class WorkspaceNode;
+}
+
 namespace treemcp::StdioServer {
 
 /** @brief Run the main event loop until stdin closes or a transport operation fails. */
-int run(QCoreApplication& application);
+int run(QCoreApplication& application, const WorkspaceNode& root);
 
 } // namespace treemcp::StdioServer
 
