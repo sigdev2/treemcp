@@ -16,6 +16,15 @@ Every build helper runs CTest after compilation. Current checks are:
   and Python queries, UTF-8 offsets and columns, predicate diagnostics, syntax
   recovery, cursor exhaustion and the input, capture, tree and response limits.
 
+- `workspace.stdio` runs when CMake finds Python 3. It uses the standard library
+  and a temporary workspace to exercise filters, overlapping scopes, path and file
+  limits, in-session edits, replacements, deletions and a directory swap during
+  requests. It covers junctions and hidden attributes on Windows, and symlinks,
+  FIFOs, sockets and a renamed workspace root on Linux.
+- On Linux, `workspace.changed-read` interposes the first data read on each
+  attempt in the test executable. A stable file takes one attempt, one mutation
+  returns fresh bytes on the second attempt, and two mutations return a diagnostic.
+
 The self-check uses explicit conditions, so validation remains active in Release.
 It is a dependency integration check, not MCP, security or performance acceptance.
 
@@ -35,6 +44,13 @@ Performance measurements require a correctness oracle, fixed corpus revisions an
 a hardware/software manifest. Compare sequential searches, concurrent searches and
 one batch using equivalent queries and limits. Report OS cache conditions separately
 from process warmup; no application content cache is allowed.
+
+## Workspace verification
+
+On 2026-11-19, all six CTest checks passed in Windows/MinGW Debug and Release.
+All seven passed in Linux/WSL Debug, Release and ASan/UBSan. The Windows Release
+server passed the Python SDK schema and tool-call checks for inline source,
+a workspace file and a directory scope.
 
 ## Single-file search verification
 

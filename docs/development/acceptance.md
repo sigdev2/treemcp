@@ -1,6 +1,7 @@
 # Release acceptance criteria
 
-The [current tests](testing.md) cover the build and synchronous protocol foundation.
+The [current tests](testing.md) cover the build, synchronous MCP tools, workspace
+filters, handle checks and per-request freshness.
 Before version 1.0.0, implement the suites below and retain their fixture revisions,
 toolchain versions, configuration and results with the release evidence.
 

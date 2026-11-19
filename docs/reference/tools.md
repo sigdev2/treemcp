@@ -127,5 +127,5 @@ are zero-based and ends are exclusive. A tree or search result with
 object serialized as compact JSON. `truncated` means a display limit omitted
 nodes, matches, captures or text. `capturesTruncated` and `textTruncated` locate
 clipping within a returned match. Ranges always describe the full capture.
-`incomplete` means the query cursor dropped in-progress states. An empty match
+`incomplete` means the query cursor dropped in-progress states or the workspace scope could only be searched in part. An empty match
 array with both flags false means the query completed with no matches.

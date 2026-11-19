@@ -36,12 +36,12 @@ Version 0.1.0 is the bootstrap; 1.0.0 requires all release gates below.
 
 ## 3. Workspace access and consistency
 
-- [ ] Bind one workspace root at process startup; accept only relative tool paths.
-- [ ] Implement POSIX handle-relative no-follow traversal and Windows final-handle checks.
-- [ ] Reject traversal, devices, FIFOs, reparse escapes and absolute paths before reading content.
-- [ ] Add streaming traversal, include/exclude globs, ignore rules and binary/hidden filtering.
-- [ ] Read through an opened handle, compare metadata before/after and retry at most once.
-- [ ] Verify file changes and removals are visible on the next request without restarting.
+- [x] Bind one workspace root at process startup; accept only relative tool paths.
+- [x] Implement POSIX handle-relative no-follow traversal and Windows final-handle checks.
+- [x] Reject traversal, devices, FIFOs, reparse escapes and absolute paths before reading content.
+- [x] Add streaming traversal, include/exclude globs, ignore rules and binary/hidden filtering.
+- [x] Read through an opened handle, compare metadata before/after and retry at most once.
+- [x] Verify file changes and removals are visible on the next request without restarting.
 
 ## 4. Batch search (required for MVP)
 

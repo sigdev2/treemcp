@@ -4,14 +4,16 @@ import asyncio
 import json
 from pathlib import Path
 import sys
+from tempfile import TemporaryDirectory
 
 from jsonschema import Draft202012Validator
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 
-async def check(executable: Path) -> None:
-    async with stdio_client(StdioServerParameters(command=str(executable.resolve()))) as streams:
+async def check(executable: Path, workspace: Path) -> None:
+    server = StdioServerParameters(command=str(executable.resolve()), args=["--workspace-root", str(workspace)])
+    async with stdio_client(server) as streams:
         async with ClientSession(*streams) as client:
             handshake = await client.initialize()
             assert handshake.protocolVersion == "2025-11-25"
@@ -19,14 +21,19 @@ async def check(executable: Path) -> None:
             catalog = await client.list_tools()
             query = '((function_definition name: (identifier) @name) (#eq? @name "answer"))'
             source = "def answer():\n    return 42\n"
+            (workspace / "example.py").write_text(source, encoding="utf-8")
             examples = {
                 "languages": [{}],
                 "query_validate": [
                     {"language": "python", "query": query},
                     {"language": "python", "query": "(unknown_node)"},
                 ],
-                "syntax_tree": [{"language": "python", "source": source}],
-                "structural_search": [{"language": "python", "source": source, "query": query}],
+                "syntax_tree": [{"language": "python", "source": source}, {"language": "python", "path": "example.py"}],
+                "structural_search": [
+                    {"language": "python", "source": source, "query": query},
+                    {"language": "python", "path": "example.py", "query": query},
+                    {"language": "python", "paths": ["."], "include": ["*.py"], "query": query},
+                ],
             }
             assert [tool.name for tool in catalog.tools] == list(examples)
             for tool in catalog.tools:
@@ -50,4 +57,5 @@ async def check(executable: Path) -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(check(Path(sys.argv[1])))
+    with TemporaryDirectory() as directory:
+        asyncio.run(check(Path(sys.argv[1]), Path(directory)))
