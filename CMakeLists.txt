@@ -32,9 +32,12 @@ configure_file(cmake/Version.hpp.in generated/treemcp/Version.hpp @ONLY)
 add_library(treemcp_core STATIC
     src/app/SelfCheck.cpp
     src/languages/LanguageRegistry.cpp
+    src/mcp/Framer.cpp
+    src/mcp/JsonRpc.cpp
 )
-target_include_directories(treemcp_core PUBLIC src/app src/languages "${PROJECT_BINARY_DIR}/generated")
+target_include_directories(treemcp_core PUBLIC src/app src/languages src/mcp "${PROJECT_BINARY_DIR}/generated")
 target_link_libraries(treemcp_core PUBLIC Qt6::Core tree_sitter tree_sitter_cpp tree_sitter_python)
+target_link_libraries(treemcp_core PRIVATE yyjson)
 treemcp_set_warnings(treemcp_core)
 
 add_executable(structural-mcp src/main.cpp)
@@ -52,7 +55,7 @@ install(DIRECTORY docs/ DESTINATION "${CMAKE_INSTALL_DOCDIR}/docs")
 install(DIRECTORY config/ DESTINATION "${CMAKE_INSTALL_DOCDIR}/config")
 install(FILES third_party/dependencies.lock.json third_party/SHA256SUMS
     DESTINATION "${CMAKE_INSTALL_DOCDIR}/third_party")
-foreach(dependency tree-sitter tree-sitter-cpp tree-sitter-python)
+foreach(dependency tree-sitter tree-sitter-cpp tree-sitter-python yyjson)
     install(FILES "third_party/${dependency}/LICENSE"
         DESTINATION "${CMAKE_INSTALL_DOCDIR}/third_party/${dependency}")
 endforeach()

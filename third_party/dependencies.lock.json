@@ -34,6 +34,17 @@
         "src"
       ],
       "vendoredFiles": 8
+    },
+    {
+      "name": "yyjson",
+      "version": "0.12.0",
+      "commit": "8b4a38dc994a110abaec8a400615567bd996105f",
+      "repository": "https://github.com/ibireme/yyjson",
+      "license": "MIT",
+      "vendoredDirectories": [
+        "src"
+      ],
+      "vendoredFiles": 3
     }
   ]
 }

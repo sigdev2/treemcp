@@ -7,6 +7,7 @@ process is used by the executable. Development scripts are separate from runtime
 | Component | Pinned source |
 | --- | --- |
 | Qt Core | Reference installation 6.4.1; minimum required 6.4.1 |
+| yyjson (strict UTF-8 JSON reader) | [0.12.0](https://github.com/ibireme/yyjson/releases/tag/0.12.0) |
 | Tree-sitter | [v0.25.10](https://github.com/tree-sitter/tree-sitter/releases/tag/v0.25.10) |
 | C++ grammar | [v0.23.4](https://github.com/tree-sitter/tree-sitter-cpp/releases/tag/v0.23.4) |
 | Python grammar | [v0.25.0](https://github.com/tree-sitter/tree-sitter-python/releases/tag/v0.25.0) |
