@@ -15,7 +15,16 @@ The binary is named `structural-mcp`. In this milestone it supports `--help`,
 executes a query, checks capture boundaries and verifies invalid-query rejection.
 It runs through a Qt Core event loop and never accesses project source files.
 
-All CLI output goes to stderr; stdout is reserved for the future MCP transport.
-Exit codes: 0 for success, 1 for a failed self-check and 2 for invalid invocation
-or the unavailable server mode. Running without arguments deliberately exits
-with a clear diagnostic. There is no MCP handshake or search tool yet.
+Start the executable with no arguments as a stdio child process. Send each of
+the following lines to stdin, waiting for the initialize response before
+sending the notification. Read responses from stdout and close stdin to exit.
+
+```jsonl
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"example","version":"1"}}}
+{"jsonrpc":"2.0","method":"notifications/initialized"}
+{"jsonrpc":"2.0","id":2,"method":"tools/list"}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"languages","arguments":{}}}
+```
+
+CLI diagnostics use stderr. Exit status is 0 for a successful self-check or
+normal EOF, 1 for a failed self-check or transport error and 2 for invalid invocation.

@@ -1,12 +1,12 @@
 # Project requirements
 
-| Area | Required behavior | Bootstrap status |
+| Area | Required behavior | Current status |
 | --- | --- | --- |
 | Language and Qt | C++20, Qt Core only | Implemented |
 | Parser dependencies | Embedded, pinned Tree-sitter and compiled grammars | C++ and Python included |
 | Search language | Tree-sitter S-expression queries | Exercised by self-check only |
-| Protocol | stdio, UTF-8 NDJSON, JSON-RPC, one stdout writer | Planned; stdout stays empty |
-| Tools | languages, query_validate, syntax_tree, structural_search, batch_search | Planned |
+| Protocol | stdio, UTF-8 NDJSON, JSON-RPC, one stdout writer | MCP 2025-11-25 on Windows and POSIX |
+| Tools | languages, query_validate, syntax_tree, structural_search, batch_search | languages available |
 | Freshness | Fresh file reads and trees per request | Architecture recorded |
 | Persistence | No workspace cache, state files or runtime logs on disk | No such runtime behavior |
 | File access | Immutable root, secure handles, coherent reads | Planned |
@@ -46,9 +46,7 @@ These must be settled before publishing stable schemas:
    below the hard cap 64. Advertised schemas must reflect the active limit.
 4. Apply consistent strict object definitions and partial-result reporting to
    single and batch output contracts.
-5. Follow the [MCP compatibility policy](../adr/protocol-compatibility.md) before
-   advertising any protocol version. No version is claimed by the bootstrap.
-6. Pin and test the [OpenCode configuration and skill format](../integrations/opencode-v2.md)
+5. Pin and test the [OpenCode configuration and skill format](../integrations/opencode-v2.md)
    before distributing a working client configuration.
 
 Resolve these choices in architecture decisions and tests. Do not silently treat

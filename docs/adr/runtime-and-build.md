@@ -11,8 +11,8 @@ Qt installation and native GCC/Ninja, including when invoked through WSL.
 Platform/configuration presets have distinct build directories. Tool locations
 come from PATH, environment variables or ignored local configuration files.
 
-CLI output stays on stderr, leaving stdout for protocol messages. The bootstrap
-exits explicitly when server mode is requested; it does not pretend to negotiate MCP.
+CLI output stays on stderr. In server mode the Qt main thread dispatches
+requests and writes protocol replies to stdout.
 
 The style guide governs source conventions. Its general concurrency examples do
 not override the project's requirement for controlled, bounded scheduling.

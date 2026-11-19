@@ -18,16 +18,17 @@ Version 0.1.0 is the bootstrap; 1.0.0 requires all release gates below.
 
 ## 1. Protocol foundation
 
-- [ ] Verify and pin an official MCP revision; document its handshake and compatibility policy.[^protocol-policy]
-- [ ] Implement bounded UTF-8 NDJSON framing and strict JSON-RPC validation.
-- [ ] Add Windows and POSIX stdin transports, one main-thread stdout writer and EOF shutdown.
-- [ ] Implement initialize, notifications, tools/list, tools/call and request ID tracking.
-- [ ] Publish strict input/output schemas only for tools that actually work.
-- [ ] Test malformed input, interleaved requests, clean stdout and shutdown.
+- [x] Verify and pin an official MCP revision; document its handshake and compatibility policy.[^protocol-policy]
+- [x] Implement bounded UTF-8 NDJSON framing and strict JSON-RPC validation.
+- [x] Add Windows and POSIX stdin transports, one main-thread stdout writer and EOF shutdown.
+- [x] Implement initialize, notifications, tools/list, tools/call and request ID tracking.
+- [x] Publish strict input/output schemas only for tools that actually work.
+- [x] Test malformed input, interleaved requests, clean stdout and shutdown.
 
 ## 2. Single-file structural search
 
-- [ ] Implement languages, query_validate, syntax_tree and structural_search.
+- [x] Implement languages using the compiled grammar registry.
+- [ ] Implement query_validate, syntax_tree and structural_search.
 - [ ] Add request-local RAII parser/query/tree/cursor ownership and precise UTF-8 byte ranges.
 - [ ] Implement eq?, not-eq? and any-of?; reject unsupported predicates and directives.
 - [ ] Bound source, query, tree dump, match text, captures and complete response sizes.

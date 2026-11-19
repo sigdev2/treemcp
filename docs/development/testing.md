@@ -6,6 +6,11 @@ Every build helper runs CTest after compilation. Current checks are:
   expected function boundaries; invalid node types are rejected.
 - `bootstrap.cli`: help, version, self-check and failure cases have the expected
   exit status and diagnostics; none writes to protocol stdout.
+- `protocol.decoder` covers fragmented and oversized frames, strict JSON/UTF-8,
+  ambiguous envelopes, integer precision and Unicode ID preservation.
+- `protocol.stdio` launches the real executable, negotiates the revision, validates
+  the catalog and call results, pipelines 1,000 requests with mixed ID types,
+  checks error recovery and closes stdin with replies still to read.
 - Configure-time SHA-256 verification of the complete vendored source subset.
 
 The self-check uses explicit conditions, so validation remains active in Release.
@@ -27,6 +32,19 @@ Performance measurements require a correctness oracle, fixed corpus revisions an
 a hardware/software manifest. Compare sequential searches, concurrent searches and
 one batch using equivalent queries and limits. Report OS cache conditions separately
 from process warmup; no application content cache is allowed.
+
+## Protocol foundation verification
+
+On 2026-11-19, build `45d7a50` (0.1.0, MCP `2025-11-25`) passed all four
+CTest checks on Windows/MinGW and Linux/WSL in Debug and Release. Linux also
+passed under ASan/UBSan. The Windows Release binary passed initialization,
+ping, discovery, calls, JSON Schema validation and shutdown with the
+[official MCP Python SDK 1.26.0](https://github.com/modelcontextprotocol/python-sdk/releases/tag/v1.26.0).
+
+To reproduce the SDK check, use a development Python environment with
+`mcp==1.26.0`, make the server's runtime libraries discoverable, then run
+`python tests/check_sdk.py path/to/structural-mcp` from the checkout root.
+The CTest suite uses Qt Core and runs offline.
 
 ## Bootstrap verification
 

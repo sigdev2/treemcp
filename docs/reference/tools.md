@@ -1,6 +1,9 @@
-# Planned MCP tools
+# MCP tools
 
-**None of these tools is implemented or advertised yet.**
+`tools/list` advertises `languages`. Call it with `{"name":"languages","arguments":{}}`
+as the parameters of `tools/call`. Its result contains a `languages` array with
+an `id` and `extensions` for each compiled grammar. The other tools below are planned.
+[Published input and output schemas](../../schemas/languages.json)
 
 | Tool | Purpose | Key contract |
 | --- | --- | --- |

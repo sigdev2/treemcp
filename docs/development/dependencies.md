@@ -1,7 +1,7 @@
 # Dependencies
 
-Runtime components are C++ standard libraries, Qt Core and embedded Tree-sitter
-runtime/grammar sources. No external MCP SDK, Qt Network, Python, Node.js or shell
+Runtime components are C++ standard libraries, Qt Core, yyjson and embedded
+Tree-sitter runtime/grammar sources. No external MCP SDK, Qt Network, Python, Node.js or shell
 process is used by the executable. Development scripts are separate from runtime behavior.
 
 | Component | Pinned source |

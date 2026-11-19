@@ -1,6 +1,6 @@
 # OpenCode v2 integration
 
-**Planned deliverable. The bootstrap binary cannot be configured as a working MCP server.**
+**Planned deliverable. OpenCode v2 integration awaits client-specific testing.**
 
 Ship a `structural-search` skill under
 `integrations/opencode-v2/.opencode/skills/structural-search/SKILL.md`, with query

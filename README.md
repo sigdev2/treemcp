@@ -7,8 +7,9 @@ locations in the current project files. Several related searches can share one r
 The project is read-only by design: no source changes, persistent indexes or saved
 search history. Structural matches describe syntax, not resolved symbols or program behavior.
 
-**Status:** initial development. The build foundation and dependency self-check are
-available; MCP tools and project search are planned.
+Run `structural-mcp` without arguments to start an MCP stdio server. The
+`languages` tool lists the compiled C++ and Python grammars and their extensions.
+Structural search is the next milestone. [Protocol and handshake](docs/adr/protocol-compatibility.md)
 
 - [Documentation](docs/README.md) and [build instructions](docs/getting-started/README.md)
 - [Roadmap and TODO](ROADMAP.md)

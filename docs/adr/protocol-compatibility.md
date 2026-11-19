@@ -21,6 +21,22 @@ See the official [lifecycle](https://modelcontextprotocol.io/specification/2025-
 [message types](https://modelcontextprotocol.io/specification/2025-11-25/basic)
 and [stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports).
 
+## Wire limits and errors
+
+| Limit | Behavior |
+| --- | --- |
+| 1 MiB before LF | Accept LF or CRLF. Discard an oversized record through its delimiter and resume with the next record. The optional CR counts toward the limit. |
+| 64 levels below the root, 1,024 members per object | Reject deeper values, wider objects and duplicate member names. |
+| Request ID | Accept signed 64-bit integer literals and strings up to 1,024 UTF-8 bytes. Numeric and string IDs are distinct. |
+| 16,384 admitted request IDs per process | At capacity, new requests receive `-32001`. Start a new session to continue. |
+
+Malformed UTF-8 or JSON, blank records and an unfinished record at EOF produce
+`-32700`. Invalid envelopes, batch arrays and reused IDs produce `-32600`.
+An error omits `id` when it cannot be identified. Unknown methods receive
+`-32601`, malformed parameters receive `-32602`, and tools called before the
+handshake completes receive `-32002`. The server issues no client requests.
+Unknown notifications and unsolicited well-formed responses are ignored.
+
 ## Tool contract
 
 The initial catalog exposes the immutable grammar registry through `languages`.
@@ -35,3 +51,6 @@ completion is ignored. Worker cancellation and shutdown with active searches
 belong to the scheduler milestone. Client-specific compatibility requires a
 separate test against the named client and version.
 [Cancellation](https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/cancellation)
+
+The [verification record](../development/testing.md#protocol-foundation-verification)
+identifies the tested build, wire tests and SDK client.

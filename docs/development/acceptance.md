@@ -1,9 +1,8 @@
 # Release acceptance criteria
 
-These are planned release checks, not claims about the bootstrap executable.
-The [current tests](testing.md) verify the build foundation only. Before version
-1.0.0, implement the suites below and retain their fixture revisions, toolchain
-versions, configuration and results with the release evidence.
+The [current tests](testing.md) cover the build and synchronous protocol foundation.
+Before version 1.0.0, implement the suites below and retain their fixture revisions,
+toolchain versions, configuration and results with the release evidence.
 
 ## Freshness and persistence
 

@@ -1,7 +1,9 @@
 # Internals
 
-The current executable contains a Qt Core event loop, a fixed language registry
-and a dependency self-check. The architecture below defines the next milestones.
+The stdio server reads native Windows handles or POSIX file descriptors on a
+dedicated thread. It hands one bounded chunk at a time to the Qt event loop,
+which decodes records, dispatches requests and flushes replies. The fixed language
+registry backs the first tool. The diagram also shows the planned search workers.
 
 - [Request lifecycle](lifecycle.md)
 - [Batch execution](batch.md)
