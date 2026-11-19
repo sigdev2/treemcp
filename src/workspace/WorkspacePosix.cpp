@@ -1,8 +1,10 @@
 #include "WorkspaceNode.hpp"
 
 #include <cerrno>
+#include <dirent.h>
 #include <fcntl.h>
 #include <QFile>
+#include <QScopeGuard>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -47,6 +49,33 @@ WorkspaceNode WorkspaceNode::child(const QString& component) const
         return WorkspaceNode(NodeKind::Error);
     }
     return WorkspaceNode(S_ISDIR(opened.st_mode) ? NodeKind::Directory : NodeKind::File, fd);
+}
+
+bool WorkspaceNode::list(const std::function<bool(const QString&)>& visit) const
+{
+    // A new open file description gives this iterator an independent offset.
+    const int fd = openat(static_cast<int>(native), ".", O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+    if (fd < 0) {
+        return false;
+    }
+    DIR* directory = fdopendir(fd);
+    if (!directory) {
+        close(fd);
+        return false;
+    }
+    const auto guard = qScopeGuard([directory]() { closedir(directory); });
+    for (;;) {
+        errno = 0;
+        const dirent* entry = readdir(directory);
+        if (!entry) {
+            return errno == 0;
+        }
+        const QByteArray name(entry->d_name);
+        const QString decoded = QString::fromUtf8(name);
+        if (!visit(decoded.toUtf8() == name ? decoded : QString())) {
+            return true;
+        }
+    }
 }
 
 std::optional<FileStamp> WorkspaceNode::stamp() const

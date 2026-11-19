@@ -102,7 +102,30 @@ QJsonObject captureEntry(const TSQueryCapture& capture, const TSQuery* query, QB
              { "textTruncated", clipped } };
 }
 
-Result findMatches(TSNode root, QByteArrayView source, const CompiledQuery& compiled, int maxMatches)
+struct SearchResults {
+    QJsonArray matches;
+    qsizetype remaining = ENTRY_BUDGET;
+    bool syntaxErrors = false;
+    bool truncated = false;
+    bool incomplete = false;
+    bool full = false;
+
+    QJsonObject data() const
+    {
+        return { { "matches", matches },
+                 { "hasSyntaxErrors", syntaxErrors },
+                 { "truncated", truncated },
+                 { "incomplete", incomplete } };
+    }
+};
+
+QString findMatches(
+    TSNode root,
+    QByteArrayView source,
+    const CompiledQuery& compiled,
+    int maxMatches,
+    const QString& path,
+    SearchResults& results)
 {
     // The pinned runtime records up to three captures per visited node, but the C API
     // exposes only a 16-bit capture count. Guard repeated captures before it can wrap.
@@ -124,9 +147,7 @@ Result findMatches(TSNode root, QByteArrayView source, const CompiledQuery& comp
     }
     ts_query_cursor_set_match_limit(cursor.get(), 256);
     ts_query_cursor_exec(cursor.get(), compiled.query.get(), root);
-    QJsonArray matches;
-    qsizetype remaining = ENTRY_BUDGET;
-    bool truncated = false;
+    results.syntaxErrors |= ts_node_has_error(root);
     TSQueryMatch match {};
     while (ts_query_cursor_next_match(cursor.get(), &match)) {
         const auto& predicates = compiled.predicates.at(match.pattern_index);
@@ -136,28 +157,106 @@ Result findMatches(TSNode root, QByteArrayView source, const CompiledQuery& comp
         {
             continue;
         }
-        if (matches.size() == maxMatches) {
-            truncated = true;
+        if (results.matches.size() == maxMatches) {
+            results.full = results.truncated = true;
             break;
         }
         QJsonArray captures;
         const bool clipped = match.capture_count > MAX_CAPTURES;
-        truncated |= clipped;
+        results.truncated |= clipped;
         for (uint32_t i = 0; i < std::min<uint32_t>(match.capture_count, MAX_CAPTURES); ++i) {
-            captures.append(captureEntry(match.captures[i], compiled.query.get(), source, truncated));
+            captures.append(captureEntry(match.captures[i], compiled.query.get(), source, results.truncated));
         }
-        const QJsonObject entry { { "patternIndex", match.pattern_index },
-                                  { "captures", captures },
-                                  { "capturesTruncated", clipped } };
-        if (!appendEntry(matches, entry, remaining)) {
-            truncated = true;
+        QJsonObject entry { { "patternIndex", match.pattern_index },
+                            { "captures", captures },
+                            { "capturesTruncated", clipped } };
+        if (!path.isEmpty()) {
+            entry.insert("path", path);
+        }
+        if (!appendEntry(results.matches, entry, results.remaining)) {
+            results.full = results.truncated = true;
             break;
         }
     }
-    return QJsonObject { { "matches", matches },
-                         { "hasSyntaxErrors", ts_node_has_error(root) },
-                         { "truncated", truncated },
-                         { "incomplete", ts_query_cursor_did_exceed_match_limit(cursor.get()) } };
+    results.incomplete |= ts_query_cursor_did_exceed_match_limit(cursor.get());
+    return {};
+}
+
+Result parseSource(
+    const QByteArray& source,
+    const TSLanguage* language,
+    const CompiledQuery& compiled,
+    const QJsonObject& arguments,
+    bool treeMode,
+    const QString& path,
+    SearchResults& results)
+{
+    const Parser parser { ts_parser_new(), ts_parser_delete };
+    if (!parser || !ts_parser_set_language(parser.get(), language)) {
+        return QStringLiteral("Cannot initialize parser");
+    }
+    const Tree tree {
+        ts_parser_parse_string(parser.get(), nullptr, source.constData(), static_cast<uint32_t>(source.size())),
+        ts_tree_delete
+    };
+    if (!tree) {
+        return QStringLiteral("Cannot parse source");
+    }
+    const TSNode root = ts_tree_root_node(tree.get());
+    if (treeMode) {
+        return dumpTree(root, arguments.value("maxDepth").toInt(), arguments.value("maxNodes").toInt());
+    }
+    const QString error = findMatches(root, source, compiled, arguments.value("maxMatches").toInt(), path, results);
+    if (!error.isEmpty()) {
+        return error;
+    }
+    return QJsonObject {};
+}
+
+QStringList strings(const QJsonValue& value)
+{
+    QStringList list;
+    for (const auto item : value.toArray()) {
+        list.append(item.toString());
+    }
+    return list;
+}
+
+Result searchScope(
+    const WorkspaceNode& workspace,
+    const LanguageDefinition& grammar,
+    const CompiledQuery& compiled,
+    const QJsonObject& arguments)
+{
+    const FileScope scope { strings(arguments.value("paths")),
+                            strings(arguments.value("include")),
+                            strings(arguments.value("exclude")),
+                            grammar.extensions };
+    SearchResults results;
+    QJsonArray diagnostics;
+    const auto report = [&](const QString& path, const QString& message) {
+        results.incomplete = true;
+        if (diagnostics.size() < 16) {
+            diagnostics.append(QJsonObject { { "path", path.left(256) }, { "message", message } });
+        }
+    };
+    const QString error = scanWorkspace(
+        workspace,
+        scope,
+        [&](const QString& path, const QByteArray& source) {
+            const auto parsed = parseSource(source, grammar.language, compiled, arguments, false, path, results);
+            if (const auto* failure = std::get_if<QString>(&parsed)) {
+                report(path, *failure);
+            }
+            return !results.full;
+        },
+        report);
+    if (!error.isEmpty()) {
+        return error;
+    }
+    QJsonObject output = results.data();
+    output.insert("diagnostics", diagnostics);
+    return output;
 }
 
 } // namespace
@@ -185,6 +284,9 @@ Result run(const QString& name, const QJsonObject& arguments, const WorkspaceNod
                                  { "patternCount", qint64 { ts_query_pattern_count(compiled.query.get()) } } };
         }
     }
+    if (arguments.contains("paths")) {
+        return searchScope(workspace, *grammar, compiled, arguments);
+    }
     QByteArray source;
     if (arguments.contains("path")) {
         auto read = readWorkspaceFile(workspace, arguments.value("path").toString());
@@ -195,22 +297,19 @@ Result run(const QString& name, const QJsonObject& arguments, const WorkspaceNod
     } else {
         source = arguments.value("source").toString().toUtf8();
     }
-    const Parser parser { ts_parser_new(), ts_parser_delete };
-    if (!parser || !ts_parser_set_language(parser.get(), grammar->language)) {
-        return QStringLiteral("Cannot initialize parser");
+    SearchResults results;
+    const Result output = parseSource(
+        source,
+        grammar->language,
+        compiled,
+        arguments,
+        name == "syntax_tree",
+        arguments.value("path").toString(),
+        results);
+    if (name == "syntax_tree" || std::holds_alternative<QString>(output)) {
+        return output;
     }
-    const Tree tree {
-        ts_parser_parse_string(parser.get(), nullptr, source.constData(), static_cast<uint32_t>(source.size())),
-        ts_tree_delete
-    };
-    if (!tree) {
-        return QStringLiteral("Cannot parse source");
-    }
-    const TSNode root = ts_tree_root_node(tree.get());
-    if (name == "syntax_tree") {
-        return dumpTree(root, arguments.value("maxDepth").toInt(), arguments.value("maxNodes").toInt());
-    }
-    return findMatches(root, source, compiled, arguments.value("maxMatches").toInt());
+    return results.data();
 }
 
 } // namespace treemcp::SingleFile

@@ -4,6 +4,7 @@
 #include <QByteArray>
 #include <QString>
 
+#include <functional>
 #include <optional>
 
 namespace treemcp {
@@ -32,6 +33,8 @@ class WorkspaceNode {
 public:
     static WorkspaceNode openRoot(const QString& path);
     WorkspaceNode child(const QString& component) const;
+    // The callback returns false to stop enumeration early.
+    bool list(const std::function<bool(const QString&)>& visit) const;
     ~WorkspaceNode();
     WorkspaceNode(WorkspaceNode&& other) noexcept;
     WorkspaceNode(const WorkspaceNode&) = delete;

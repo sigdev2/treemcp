@@ -1,12 +1,24 @@
 {
   "name": "structural_search",
-  "description": "Find structural matches and named captures in one inline source or workspace file using a Tree-sitter query.",
+  "description": "Find structural matches in inline source, a workspace file, or a filtered set of workspace paths.",
   "inputSchema": {
     "type": "object",
     "properties": {
       "language": {
         "type": "string",
         "enum": ["cpp", "python"]
+      },
+      "paths": {
+        "type": "array", "minItems": 1, "maxItems": 64,
+        "items": { "type": "string", "minLength": 1, "maxLength": 4096, "x-maxUtf8Bytes": 4096 }
+      },
+      "include": {
+        "type": "array", "maxItems": 64,
+        "items": { "type": "string", "minLength": 1, "maxLength": 512, "x-maxUtf8Bytes": 512 }
+      },
+      "exclude": {
+        "type": "array", "maxItems": 64,
+        "items": { "type": "string", "minLength": 1, "maxLength": 512, "x-maxUtf8Bytes": 512 }
       },
       "path": { "type": "string", "minLength": 1, "maxLength": 4096, "x-maxUtf8Bytes": 4096 },
       "source": {
@@ -28,19 +40,29 @@
         "default": 100
       }
     },
-    "oneOf": [{ "required": ["source"] }, { "required": ["path"] }],
+    "oneOf": [{ "required": ["source"] }, { "required": ["path"] }, { "required": ["paths"] }],
+    "dependentRequired": { "include": ["paths"], "exclude": ["paths"] },
     "required": ["language", "query"],
     "additionalProperties": false
   },
   "outputSchema": {
     "type": "object",
     "properties": {
+      "diagnostics": {
+        "type": "array", "maxItems": 16,
+        "items": {
+          "type": "object",
+          "properties": { "path": { "type": "string" }, "message": { "type": "string" } },
+          "required": ["path", "message"], "additionalProperties": false
+        }
+      },
       "matches": {
         "type": "array",
         "maxItems": 1000,
         "items": {
           "type": "object",
           "properties": {
+            "path": { "type": "string" },
             "patternIndex": { "type": "integer", "minimum": 0 },
             "captures": {
               "type": "array",

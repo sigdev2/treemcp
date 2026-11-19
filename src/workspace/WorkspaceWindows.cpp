@@ -1,5 +1,6 @@
 #include "WorkspaceNode.hpp"
 
+#include <array>
 #include <QDir>
 
 #include <string>
@@ -83,7 +84,7 @@ WorkspaceNode WorkspaceNode::child(const QString& component) const
         &statusBlock,
         nullptr,
         0,
-        FILE_SHARE_READ | FILE_SHARE_DELETE,
+        FILE_SHARE_READ,
         FILE_OPEN,
         FILE_SYNCHRONOUS_IO_NONALERT | FILE_OPEN_REPARSE_POINT,
         nullptr,
@@ -98,7 +99,9 @@ WorkspaceNode WorkspaceNode::child(const QString& component) const
         CloseHandle(handle);
         return WorkspaceNode(NodeKind::Error);
     }
-    if (info.dwFileAttributes & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_DEVICE | FILE_ATTRIBUTE_REPARSE_POINT)) {
+    if ((info.dwFileAttributes & (FILE_ATTRIBUTE_DEVICE | FILE_ATTRIBUTE_REPARSE_POINT)) ||
+        ((info.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN) && component != ".gitignore"))
+    {
         CloseHandle(handle);
         return WorkspaceNode(NodeKind::Excluded);
     }
@@ -117,6 +120,32 @@ WorkspaceNode WorkspaceNode::child(const QString& component) const
     return WorkspaceNode(
         info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY ? NodeKind::Directory : NodeKind::File,
         reinterpret_cast<qintptr>(handle));
+}
+
+bool WorkspaceNode::list(const std::function<bool(const QString&)>& visit) const
+{
+    // Each synchronous walk owns its cursor until the callback returns. The
+    // startup root is reused, so explicitly restart its cursor on every walk.
+    const HANDLE directory = reinterpret_cast<HANDLE>(native);
+    FILE_INFO_BY_HANDLE_CLASS operation = FileIdBothDirectoryRestartInfo;
+    alignas(FILE_ID_BOTH_DIR_INFO) std::array<std::byte, 8192> buffer;
+    while (GetFileInformationByHandleEx(directory, operation, buffer.data(), sizeof(buffer))) {
+        operation = FileIdBothDirectoryInfo;
+        size_t offset = 0;
+        for (;;) {
+            const void* address = buffer.data() + offset;
+            const auto* entry = static_cast<const FILE_ID_BOTH_DIR_INFO*>(address);
+            const auto length = static_cast<qsizetype>(entry->FileNameLength / sizeof(WCHAR));
+            if (!visit(QString::fromWCharArray(entry->FileName, length))) {
+                return true;
+            }
+            if (!entry->NextEntryOffset) {
+                break;
+            }
+            offset += entry->NextEntryOffset;
+        }
+    }
+    return GetLastError() == ERROR_NO_MORE_FILES;
 }
 
 std::optional<FileStamp> WorkspaceNode::stamp() const

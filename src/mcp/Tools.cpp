@@ -44,6 +44,12 @@ QString validateArguments(const QJsonObject& schema, QJsonObject& arguments)
             return QStringLiteral("Unknown argument: %1").arg(it.key().left(80));
         }
     }
+    const QJsonObject dependencies = schema.value("dependentRequired").toObject();
+    for (auto it = dependencies.begin(); it != dependencies.end(); ++it) {
+        if (arguments.contains(it.key()) && !arguments.contains(it.value().toArray().first().toString())) {
+            return QStringLiteral("Workspace filters require paths");
+        }
+    }
     const QJsonArray alternatives = schema.value("oneOf").toArray();
     if (!alternatives.isEmpty()) {
         int selected = 0;
@@ -66,6 +72,22 @@ QString validateArguments(const QJsonObject& schema, QJsonObject& arguments)
             }
             if (spec.contains("default")) {
                 arguments.insert(key, spec.value("default"));
+            }
+        } else if (spec.value("type") == "array") {
+            const auto entries = value.toArray();
+            if (!value.isArray() || entries.size() < spec.value("minItems").toInt() ||
+                entries.size() > spec.value("maxItems").toInt())
+            {
+                return QStringLiteral("Invalid list for %1").arg(key);
+            }
+            const auto item = spec.value("items").toObject();
+            for (const auto entry : entries) {
+                const auto bytes = entry.toString().toUtf8().size();
+                if (!entry.isString() || bytes < item.value("minLength").toInt() ||
+                    bytes > item.value("x-maxUtf8Bytes").toInt())
+                {
+                    return QStringLiteral("Invalid entry for %1").arg(key);
+                }
             }
         } else if (spec.value("type") == "string") {
             if (!value.isString() || (spec.contains("enum") && !spec.value("enum").toArray().contains(value))) {

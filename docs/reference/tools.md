@@ -8,12 +8,69 @@ its `name` and `arguments` to `tools/call`.
 | --- | --- | --- |
 | [languages](../../schemas/languages.json) | None | Compiled grammar IDs and their file extensions |
 | [query_validate](../../schemas/query_validate.json) | `language`, `query` | `valid` and either a pattern count or a diagnostic with a UTF-8 byte offset |
-| [syntax_tree](../../schemas/syntax_tree.json) | `language`, `source` | Nodes in preorder with depth, type, named/missing flags and range |
-| [structural_search](../../schemas/structural_search.json) | `language`, `source`, `query` | Matches in Tree-sitter cursor order with pattern indexes and ordered, named captures |
+| [syntax_tree](../../schemas/syntax_tree.json) | `language` and one of `source` or `path` | Nodes in preorder with depth, type, named/missing flags and range |
+| [structural_search](../../schemas/structural_search.json) | `language`, `query` and one of `source`, `path` or `paths` | Matches in Tree-sitter cursor order with pattern indexes and ordered, named captures |
 
-Supply `cpp` or `python` and the full text of one source file or snippet.
-The server parses the supplied text on each call. Reading workspace paths and
-running `batch_search` belong to later milestones.
+Supply `cpp` or `python`. Inline source and workspace files are parsed afresh on each call.
+
+## Workspace files
+
+Start the server with `structural-mcp --workspace-root <directory>`. The default
+root is the process working directory at startup. Use `path` to select one regular
+file with the caller's explicit grammar, regardless of its extension. For example,
+`{"language":"cpp","path":"src/main.cpp","maxDepth":2}` inspects a file with `syntax_tree`.
+
+For a recursive structural search, select one or more files or directories in `paths`.
+Use `.` for the root. Use the exact on-disk spelling and forward slashes. Empty,
+dot and parent components, absolute paths, backslashes, device names and alternate
+data streams are rejected. Paths must fit in 64 components and 4,096 UTF-8 input bytes.
+Overlapping selectors visit a given relative file path once.
+
+```json
+{
+  "name": "structural_search",
+  "arguments": {
+    "language": "python",
+    "query": "(function_definition name: (identifier) @name)",
+    "paths": ["."],
+    "include": ["src/**/*.py", "tests/**/*.py"],
+    "exclude": ["**/generated/"]
+  }
+}
+```
+
+Scoped searches select extensions advertised by `languages`. Each file-backed
+match includes its relative `path`. Within each file, matches follow cursor order.
+Across files, the server streams native directory order and applies one match and
+response budget across the scope. It stops after detecting an omitted match.
+Read, parse and traversal failures mark scoped results `incomplete`. The response
+includes up to 16 diagnostics with relative paths clipped to 256 UTF-16 units.
+A failed single-file read returns a tool error.
+
+### Filters and limits
+
+- `include` selects files. `exclude` can prune files or directories. Both take
+  up to 64 case-sensitive globs of 512 UTF-8 bytes each and require `paths`.
+  Up to 64 path selectors are accepted.
+- A slashless glob matches a basename anywhere. A leading slash anchors it.
+  Patterns containing a slash are relative to the workspace or the directory
+  containing the ignore file. A trailing slash selects directories.
+  `*`, `?` and bracket classes match within one component. A whole `**` spans
+  components. For example, `src/**/*.py` also selects `src/main.py`.
+- Each directory inherits its parents' `.gitignore` rules, then adds its own.
+  Blank lines and lines starting with `#` are skipped. The last matching rule
+  wins. A leading `!` re-includes an entry if its parent is still traversed.
+  The supported subset excludes backslash escapes and external Git configuration.
+  An unreadable or invalid ignore file skips its subtree with a diagnostic.
+  Ignore files may contain up to 64 KiB and 256 rules may be active at once.
+- Hidden names, Windows hidden attributes, links and reparse points, special
+  files and binary data are excluded. UTF-8 text may contain tab, CR, LF and
+  form feed. Other C0 control bytes are classified as binary. Explicit single-file
+  requests also honor ignore rules and these exclusions.
+- A workspace file may contain up to 8 MiB. A scan admits up to 10,000 candidate
+  files and inspects up to 100,000 directory entries. Reaching a limit with more
+  work pending marks the result incomplete. Read consistency is per opened file.
+  An in-place change detected during a read allows one fresh attempt.
 
 ## Example
 

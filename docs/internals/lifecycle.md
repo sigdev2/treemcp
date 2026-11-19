@@ -1,8 +1,8 @@
 # Request lifecycle
 
-Single-file tools run synchronously on source supplied by the caller. Validation,
-parsing, predicate evaluation and serialization use request-local state. The
-following lifecycle describes the planned extension to workspace files and workers.
+Search runs synchronously on inline source or workspace files. Each request owns
+its traversal, file buffers, trees, compiled query and results. Worker scheduling,
+cancellation and deadlines below describe the planned concurrency milestone.
 
 Each search request validates its arguments and resource budget, determines the
 current file set, securely opens and reads eligible files, builds fresh trees,

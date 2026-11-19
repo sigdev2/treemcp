@@ -41,6 +41,8 @@ add_library(treemcp_core STATIC
     src/search/Query.cpp
     src/search/SingleFile.cpp
     src/workspace/Workspace.cpp
+    src/workspace/WorkspaceFilter.cpp
+    src/workspace/WorkspaceScan.cpp
     src/workspace/WorkspaceNode.cpp
 )
 if(WIN32)

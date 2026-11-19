@@ -1,18 +1,18 @@
 # Security and resource limits
 
-The current single-file tools parse inline source with fixed byte, tree and
-result budgets. The workspace access rules and budgets below apply to the
-planned file-backed tools. [Active single-file limits](../reference/tools.md#single-file-limits)
+A stdio session owns an immutable workspace directory handle. Tool inputs select
+relative names and the standalone root selector `.`. The directory walk streams
+entries through open handles and applies scoped ignore and filter rules before
+reading source. [Workspace inputs, filters and active limits](../reference/tools.md#workspace-files)
 
-Bind the workspace root once at startup. Client paths are workspace-relative.
-Reject absolute paths, parent traversal, NUL, device/alternate paths and escapes.
-The root selector `.` needs an explicit normalization rule. Hidden files, `.git`,
-binary files and symlinks are excluded by default; ignore rules apply before reads.
-
-String canonicalization followed by opening a path is not a sufficient security
-boundary. POSIX requires directory-relative handle walking with no-follow semantics.
-Windows requires validation of the final opened handle and reparse behavior.
-Only regular files are eligible. Identity and consistency checks use the opened handle.
+POSIX opens each child with `openat` and `O_NOFOLLOW`, checks its device, inode
+and type against a no-follow metadata lookup, and uses nonblocking opens.
+Windows opens a single component relative to the parent handle with
+`NtCreateFile` and `FILE_OPEN_REPARSE_POINT`. It checks disk type, attributes
+and the normalized final handle name. Child handles deny concurrent write and
+delete sharing during inspection. On both platforms the reader compares the
+opened file's identity, size, modification and change times before and after
+the bounded read and retries a detected change at most once.
 
 The production executable must not invoke shells, git, compilers or other tools;
 open outbound sockets; or write caches, indexes, logs, temporary files or state.
@@ -34,7 +34,7 @@ these are development operations, separate from server runtime behavior.
 | Batch results | 200 | 10,000 |
 | Batch response | 8 MiB | 64 MiB |
 
-These are design budgets, not measured performance guarantees. Validate input
+This table describes target budgets for the full service. These are design budgets, not measured performance guarantees. Validate input
 before enqueue and enforce resource limits during execution and serialization,
 including both structured and text representations of the same response.
 
