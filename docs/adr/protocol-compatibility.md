@@ -39,7 +39,7 @@ Unknown notifications and unsolicited well-formed responses are ignored.
 
 ## Tool contract
 
-The initial catalog exposes the immutable grammar registry through `languages`.
+The catalog exposes `languages`, `query_validate`, `syntax_tree` and `structural_search`.
 Discovery and execution use `tools/list` and `tools/call`. A successful call
 returns the output object in `structuredContent` and its compact JSON in text
 content. Unknown tools and malformed calls return protocol errors. Arguments

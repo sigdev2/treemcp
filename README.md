@@ -8,8 +8,9 @@ The project is read-only by design: no source changes, persistent indexes or sav
 search history. Structural matches describe syntax, not resolved symbols or program behavior.
 
 Run `structural-mcp` without arguments to start an MCP stdio server. The
-`languages` tool lists the compiled C++ and Python grammars and their extensions.
-Structural search is the next milestone. [Protocol and handshake](docs/adr/protocol-compatibility.md)
+`languages` tool lists the compiled C++ and Python grammars. Use `query_validate`
+to check a Tree-sitter query, `syntax_tree` to inspect a snippet and `structural_search`
+to find matching captures in the supplied source. [Tool examples and limits](docs/reference/tools.md)
 
 - [Documentation](docs/README.md) and [build instructions](docs/getting-started/README.md)
 - [Roadmap and TODO](ROADMAP.md)

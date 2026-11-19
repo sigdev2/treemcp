@@ -1,34 +1,74 @@
 # MCP tools
 
-`tools/list` advertises `languages`. Call it with `{"name":"languages","arguments":{}}`
-as the parameters of `tools/call`. Its result contains a `languages` array with
-an `id` and `extensions` for each compiled grammar. The other tools below are planned.
-[Published input and output schemas](../../schemas/languages.json)
+Use `tools/list` to discover the following tools. The linked descriptors contain
+the input and output schemas embedded in the executable. Call a tool by passing
+its `name` and `arguments` to `tools/call`.
 
-| Tool | Purpose | Key contract |
+| Tool | Required arguments | Result |
 | --- | --- | --- |
-| languages | List the compiled grammar registry | No workspace scan |
-| query_validate | Compile and validate a query for a grammar | Exact error byte offsets; reject unsupported predicates |
-| syntax_tree | Inspect syntax names in a snippet or file | Bound depth, nodes and output bytes |
-| structural_search | Run one query in a file scope | Fresh files, precise captures, bounded results |
-| batch_search | Run related queries in one shared scope | Unique IDs, one request context, shared reads/parses |
+| [languages](../../schemas/languages.json) | None | Compiled grammar IDs and their file extensions |
+| [query_validate](../../schemas/query_validate.json) | `language`, `query` | `valid` and either a pattern count or a diagnostic with a UTF-8 byte offset |
+| [syntax_tree](../../schemas/syntax_tree.json) | `language`, `source` | Nodes in preorder with depth, type, named/missing flags and range |
+| [structural_search](../../schemas/structural_search.json) | `language`, `source`, `query` | Matches in Tree-sitter cursor order with pattern indexes and ordered, named captures |
 
-Search scopes use relative paths, include/exclude globs and ignore filtering.
-Language selection is static extension mapping or an explicit language, never
-content guessing. Ambiguous `.h` files need an explicit language or a configured default.
+Supply `cpp` or `python` and the full text of one source file or snippet.
+The server parses the supplied text on each call. Reading workspace paths and
+running `batch_search` belong to later milestones.
 
-Positions use zero-based byte offsets, rows and byte columns. Search results carry
-paths, pattern indexes, named captures, ranges, diagnostics and truncation information.
-Batch results retain input-item IDs/order and distinguish item errors from request errors.
+## Example
 
-The canonical result is `structuredContent`; compatible text content remains compact.
-The complete serialized response must stay within its budget. Tool registration
-will include strict input and output JSON Schemas synchronized with runtime validation.
+These `tools/call` parameters select the name of the Python function `answer`.
 
-MVP predicates are intended to include `eq?`, `not-eq?` and `any-of?`.
-Tree-sitter's C API exposes predicate steps; application code must implement them.
-Do not silently accept `match?`, unknown predicates or arbitrary directives.
+```json
+{
+  "name": "structural_search",
+  "arguments": {
+    "language": "python",
+    "source": "def answer():\n    return 42\n",
+    "query": "((function_definition name: (identifier) @name) (#eq? @name \"answer\"))"
+  }
+}
+```
 
-Matches are syntactic. They do not resolve symbols, overloads, types, semantic calls
-or compiler-level relationships. MVP search does not rewrite source files and
-does not offer pagination backed by stored snapshots.
+Pattern 0 returns one capture named `name` with text `answer`. Its byte range
+is `[4, 10)`, on row 0 from byte column 4 to 10. All offsets, rows and columns
+are zero-based and ends are exclusive. A tree or search result with
+`hasSyntaxErrors: true` describes the parser's recovered tree.
+
+## Predicates
+
+- `(#eq? @capture "value")` requires every occurrence to equal the literal.
+  `#not-eq?` requires every occurrence to differ.
+- `(#eq? @left @right)` and `#not-eq?` compare occurrences pairwise in capture
+  order. The two sequences must have equal lengths.
+- `(#any-of? @capture "a" "b")` requires every occurrence to equal one of the
+  listed strings. Supply at least one alternative.
+- Predicates on the same pattern must all pass. Comparisons use complete source
+  bytes before any display clipping. A missing optional capture has zero
+  occurrences. A predicate can only reference captures declared by its pattern.
+- Unsupported predicates (including `#match?`), directives and invalid arguments
+  produce diagnostics. `query_validate` reports `valid: false` for an invalid
+  pattern. Executing that query with `structural_search` returns a tool error.
+
+## Single-file limits
+
+| Resource | Limit |
+| --- | --- |
+| Inline source | 512 KiB UTF-8 |
+| Query | 1 to 65,536 UTF-8 bytes, at least one pattern |
+| Query compiler nesting | Combined delimiter depth and field prefixes in the enclosing top-level pattern up to 128 |
+| Input record | 1 MiB including the JSON envelope and escaping, before LF |
+| Tree depth (`maxDepth`) | Default 8, range 0–64, root at 0 |
+| Tree nodes (`maxNodes`) | Default 256, range 1–2,048 |
+| Matches (`maxMatches`) | Default 100, range 1–1,000 |
+| Captures and text | First 64 captures per match, first 1,024 UTF-8 bytes per capture ending on a character boundary |
+| Repeated captures | Up to 21,845 tree nodes for queries with a repeated capture, to keep Tree-sitter's 16-bit match capture count representable |
+| Cursor | 256 simultaneous in-progress matches |
+| Output | 240 KiB for serialized node or match entries, 1 MiB for the entire wire response including LF |
+
+`structuredContent` is the canonical result. The text content contains the same
+object serialized as compact JSON. `truncated` means a display limit omitted
+nodes, matches, captures or text. `capturesTruncated` and `textTruncated` locate
+clipping within a returned match. Ranges always describe the full capture.
+`incomplete` means the query cursor dropped in-progress states. An empty match
+array with both flags false means the query completed with no matches.

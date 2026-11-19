@@ -4,15 +4,15 @@
 | --- | --- | --- |
 | Language and Qt | C++20, Qt Core only | Implemented |
 | Parser dependencies | Embedded, pinned Tree-sitter and compiled grammars | C++ and Python included |
-| Search language | Tree-sitter S-expression queries | Exercised by self-check only |
+| Search language | Tree-sitter S-expression queries | Single-file compilation, validation and execution |
 | Protocol | stdio, UTF-8 NDJSON, JSON-RPC, one stdout writer | MCP 2025-11-25 on Windows and POSIX |
-| Tools | languages, query_validate, syntax_tree, structural_search, batch_search | languages available |
+| Tools | languages, query_validate, syntax_tree, structural_search, batch_search | First four available with inline source |
 | Freshness | Fresh file reads and trees per request | Architecture recorded |
 | Persistence | No workspace cache, state files or runtime logs on disk | No such runtime behavior |
 | File access | Immutable root, secure handles, coherent reads | Planned |
 | Scheduling | Bounded admission, fair workers and aggregate batch budgets | Planned |
 | Cancellation | Cooperative cancellation, deadlines and child cleanup | Planned |
-| Results | Bounded, precise ranges and deterministic sorted selection | Planned |
+| Results | Bounded, precise ranges and deterministic sorted selection | Single-file ranges and limits implemented, workspace sorting planned |
 | Client integration | Tested OpenCode v2 skill and configuration | Planned |
 
 ## Acceptance groups
@@ -39,14 +39,11 @@ These must be settled before publishing stable schemas:
 
 1. Define the special root selector `.` separately from prohibited dot/parent path
    components so default search paths remain usable and secure.
-2. Specify query limits in UTF-8 bytes; JSON Schema string length alone counts
-   characters and cannot enforce a byte budget. Choose one unambiguous per-query
-   cap (proposed: 64 KiB) across validation and admission.
-3. Define how an administrator may select batch sizes above the default 16 and
+2. Define how an administrator may select batch sizes above the default 16 and
    below the hard cap 64. Advertised schemas must reflect the active limit.
-4. Apply consistent strict object definitions and partial-result reporting to
-   single and batch output contracts.
-5. Pin and test the [OpenCode configuration and skill format](../integrations/opencode-v2.md)
+3. Extend the single-file strict object definitions and partial-result reporting
+   to the batch output contract.
+4. Pin and test the [OpenCode configuration and skill format](../integrations/opencode-v2.md)
    before distributing a working client configuration.
 
 Resolve these choices in architecture decisions and tests. Do not silently treat

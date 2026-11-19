@@ -12,6 +12,9 @@ Every build helper runs CTest after compilation. Current checks are:
   the catalog and call results, pipelines 1,000 requests with mixed ID types,
   checks error recovery and closes stdin with replies still to read.
 - Configure-time SHA-256 verification of the complete vendored source subset.
+- `search.stdio` calls all three single-file tools over the wire. It covers C++
+  and Python queries, UTF-8 offsets and columns, predicate diagnostics, syntax
+  recovery, cursor exhaustion and the input, capture, tree and response limits.
 
 The self-check uses explicit conditions, so validation remains active in Release.
 It is a dependency integration check, not MCP, security or performance acceptance.
@@ -32,6 +35,13 @@ Performance measurements require a correctness oracle, fixed corpus revisions an
 a hardware/software manifest. Compare sequential searches, concurrent searches and
 one batch using equivalent queries and limits. Report OS cache conditions separately
 from process warmup; no application content cache is allowed.
+
+## Single-file search verification
+
+On 2026-11-19, all five CTest checks passed on Windows/MinGW and Linux/WSL in
+Debug and Release and on Linux with ASan/UBSan. The Windows Release server also
+passed discovery, tool calls and input/output schema checks for all four tools
+with MCP Python SDK 1.26.0.
 
 ## Protocol foundation verification
 

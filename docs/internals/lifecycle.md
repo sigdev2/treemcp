@@ -1,6 +1,8 @@
 # Request lifecycle
 
-**Design requirement; search execution is not implemented yet.**
+Single-file tools run synchronously on source supplied by the caller. Validation,
+parsing, predicate evaluation and serialization use request-local state. The
+following lifecycle describes the planned extension to workspace files and workers.
 
 Each search request validates its arguments and resource budget, determines the
 current file set, securely opens and reads eligible files, builds fresh trees,

@@ -1,21 +1,16 @@
 #include "SelfCheck.hpp"
 
 #include "LanguageRegistry.hpp"
+#include "Query.hpp"
 
 #include <QByteArray>
 #include <tree_sitter/api.h>
 
 #include <cstdint>
-#include <memory>
 
 namespace treemcp::SelfCheck {
 
 namespace {
-
-using Parser = std::unique_ptr<TSParser, decltype(&ts_parser_delete)>;
-using Tree = std::unique_ptr<TSTree, decltype(&ts_tree_delete)>;
-using Query = std::unique_ptr<TSQuery, decltype(&ts_query_delete)>;
-using Cursor = std::unique_ptr<TSQueryCursor, decltype(&ts_query_cursor_delete)>;
 
 QString checkGrammar(const LanguageDefinition& definition, const QByteArray& source)
 {

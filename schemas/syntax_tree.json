@@ -1,0 +1,70 @@
+{
+  "name": "syntax_tree",
+  "description": "Inspect the syntax nodes of one inline source in preorder. Depth zero is the root.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "language": {
+        "type": "string",
+        "enum": ["cpp", "python"]
+      },
+      "source": {
+        "type": "string",
+        "minLength": 0,
+        "maxLength": 524288,
+        "x-maxUtf8Bytes": 524288
+      },
+      "maxDepth": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 64,
+        "default": 8
+      },
+      "maxNodes": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 2048,
+        "default": 256
+      }
+    },
+    "required": ["language", "source"],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "nodes": {
+        "type": "array",
+        "maxItems": 2048,
+        "items": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string" },
+            "range": {
+              "type": "object",
+              "properties": {
+                "startByte": { "type": "integer", "minimum": 0 },
+                "endByte": { "type": "integer", "minimum": 0 },
+                "startRow": { "type": "integer", "minimum": 0 },
+                "startColumn": { "type": "integer", "minimum": 0 },
+                "endRow": { "type": "integer", "minimum": 0 },
+                "endColumn": { "type": "integer", "minimum": 0 }
+              },
+              "required": ["startByte", "endByte", "startRow", "startColumn", "endRow", "endColumn"],
+              "additionalProperties": false
+            },
+            "depth": { "type": "integer", "minimum": 0 },
+            "named": { "type": "boolean" },
+            "missing": { "type": "boolean" }
+          },
+          "required": ["type", "range", "depth", "named", "missing"],
+          "additionalProperties": false
+        }
+      },
+      "hasSyntaxErrors": { "type": "boolean" },
+      "truncated": { "type": "boolean" }
+    },
+    "required": ["nodes", "hasSyntaxErrors", "truncated"],
+    "additionalProperties": false
+  }
+}

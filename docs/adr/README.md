@@ -19,7 +19,7 @@ choices still require a compatibility or contract decision.
 | [Vendored dependencies and exact revisions](vendored-dependencies.md) | Accepted |
 | [Search without stored pagination snapshots](../reference/tools.md) | Planned |
 | [Deterministic ordering and bounded result selection](../internals/batch.md) | Planned |
-| [Explicit predicate support](../reference/tools.md) | Planned |
+| [Explicit predicate support](../reference/tools.md) | Implemented for single-file search |
 | [Coherent file reads and cancellation lifecycle](../internals/lifecycle.md) | Planned |
 | [MCP protocol compatibility policy](protocol-compatibility.md) | Accepted |
 | [Request-local batch sharing and aggregation](../internals/batch.md) | Planned |

@@ -2,8 +2,9 @@
 
 The stdio server reads native Windows handles or POSIX file descriptors on a
 dedicated thread. It hands one bounded chunk at a time to the Qt event loop,
-which decodes records, dispatches requests and flushes replies. The fixed language
-registry backs the first tool. The diagram also shows the planned search workers.
+which decodes records, dispatches requests and flushes replies. Single-file
+queries run synchronously with a request-local parser, tree, query and cursor.
+The diagram shows the planned search workers.
 
 - [Request lifecycle](lifecycle.md)
 - [Batch execution](batch.md)

@@ -1,3 +1,5 @@
+#include "CheckSearch.hpp"
+
 #include <QCoreApplication>
 #include <QDebug>
 #include <QFile>
@@ -34,7 +36,8 @@ QJsonObject readReply(QProcess& server)
     const QJsonObject reply = QJsonDocument::fromJson(line, &error).object();
     require(
         error.error == QJsonParseError::NoError && reply.value("jsonrpc") == "2.0" &&
-            reply.contains("result") != reply.contains("error") && line.endsWith('\n') && !line.contains('\r'),
+            reply.contains("result") != reply.contains("error") && line.endsWith('\n') && !line.contains('\r') &&
+            line.size() <= 1024 * 1024,
         "Unexpected stdout record");
     return reply;
 }
@@ -67,8 +70,9 @@ void handshake(QProcess& server)
     const QJsonObject result = reply.value("result").toObject();
     require(
         reply.value("id") == "init" && result.value("protocolVersion") == "2025-11-25" &&
-            result.value("capabilities").toObject() == QJsonObject { { "tools", QJsonObject {} } } &&
-            result.value("serverInfo").toObject().value("name") == "structural-mcp",
+            result.value("capabilities").toObject() ==
+                QJsonObject { { "tools", QJsonObject {} } }&& result.value("serverInfo").toObject().value("name") ==
+                "structural-mcp",
         "Unexpected handshake");
     server.write(message(3, "tools/list"));
     expectError(server, 3, -32002);
@@ -98,7 +102,7 @@ void checkRecovery(QProcess& server)
     expectError(server, "method", -32600);
     server.write(message("cursor", "tools/list", QJsonObject { { "cursor", "invalid" } }));
     expectError(server, "cursor", -32602);
-    server.write(message("unknown", "tools/call", QJsonObject { { "name", "syntax_tree" } }));
+    server.write(message("unknown", "tools/call", QJsonObject { { "name", "batch_search" } }));
     expectError(server, "unknown", -32602);
     server.write(
         message("args", "tools/call", QJsonObject { { "name", "languages" }, { "arguments", QJsonArray {} } }));
@@ -115,14 +119,18 @@ void checkRecovery(QProcess& server)
 
 void checkTools(QProcess& server, const QString& schemaPath)
 {
-    QFile file(schemaPath);
-    require(file.open(QIODevice::ReadOnly), "Cannot open expected tool descriptor");
-    const QJsonObject descriptor = QJsonDocument::fromJson(file.readAll()).object();
+    QJsonArray descriptors;
+    for (const auto* name : { "languages", "query_validate", "syntax_tree", "structural_search" }) {
+        QFile file(schemaPath + '/' + QString::fromLatin1(name) + QStringLiteral(".json"));
+        require(file.open(QIODevice::ReadOnly), "Cannot open expected tool descriptor");
+        const QJsonObject descriptor = QJsonDocument::fromJson(file.readAll()).object();
+        require(descriptor.value("name") == QString::fromLatin1(name), "Invalid tool descriptor");
+        descriptors.append(descriptor);
+    }
     server.write(message("list", "tools/list"));
     const QJsonObject list = readReply(server);
     require(
-        list.value("id") == "list" && !descriptor.isEmpty() &&
-            list.value("result").toObject() == QJsonObject { { "tools", QJsonArray { descriptor } } },
+        list.value("id") == "list" && list.value("result").toObject() == QJsonObject { { "tools", descriptors } },
         "Incorrect tool catalog");
 
     server.write(message("call", "tools/call", QJsonObject { { "name", "languages" } }));
@@ -190,9 +198,30 @@ int main(int argc, char* argv[])
         server.start(args.at(1), QStringList {});
         require(server.waitForStarted(), "Cannot launch the MCP server");
         handshake(server);
-        checkRecovery(server);
-        checkTools(server, args.at(2));
-        pipeline(server);
+        if (args.at(2) == "--search") {
+            int id = 10;
+            checkSearch([&](const QString& tool, const QJsonObject& arguments) {
+                server.write(message(++id, "tools/call", QJsonObject { { "name", tool }, { "arguments", arguments } }));
+                const QJsonObject reply = readReply(server);
+                require(reply.value("id") == id && reply.value("result").isObject(), "Expected tool result");
+                const QJsonObject result = reply.value("result").toObject();
+                if (result.value("isError") == true) {
+                    return result;
+                }
+                const QJsonObject data = result.value("structuredContent").toObject();
+                require(
+                    !data.isEmpty() &&
+                        result.value("content").toArray().first().toObject().value("text").toString().toUtf8() ==
+                            QJsonDocument(data).toJson(QJsonDocument::Compact),
+                    "Text and structured results differ");
+                return data;
+            });
+            server.closeWriteChannel();
+        } else {
+            checkRecovery(server);
+            checkTools(server, args.at(2));
+            pipeline(server);
+        }
         require(
             server.state() == QProcess::NotRunning || server.waitForFinished(5000),
             "Server did not exit after EOF");

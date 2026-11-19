@@ -1,6 +1,8 @@
 # Security and resource limits
 
-**Target security model; the bootstrap does not expose filesystem search tools.**
+The current single-file tools parse inline source with fixed byte, tree and
+result budgets. The workspace access rules and budgets below apply to the
+planned file-backed tools. [Active single-file limits](../reference/tools.md#single-file-limits)
 
 Bind the workspace root once at startup. Client paths are workspace-relative.
 Reject absolute paths, parent traversal, NUL, device/alternate paths and escapes.

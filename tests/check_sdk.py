@@ -17,17 +17,36 @@ async def check(executable: Path) -> None:
             assert handshake.protocolVersion == "2025-11-25"
             await client.send_ping()
             catalog = await client.list_tools()
-            assert [tool.name for tool in catalog.tools] == ["languages"]
-            tool = catalog.tools[0]
-            Draft202012Validator.check_schema(tool.inputSchema)
-            inputs = Draft202012Validator(tool.inputSchema)
-            assert inputs.is_valid({}) and not inputs.is_valid({"extra": True})
-            result = await client.call_tool(tool.name, {})
-            assert not result.isError
-            Draft202012Validator.check_schema(tool.outputSchema)
-            Draft202012Validator(tool.outputSchema).validate(result.structuredContent)
-            assert json.loads(result.content[0].text) == result.structuredContent
-            assert (await client.call_tool(tool.name, {"extra": True})).isError
+            query = '((function_definition name: (identifier) @name) (#eq? @name "answer"))'
+            source = "def answer():\n    return 42\n"
+            examples = {
+                "languages": [{}],
+                "query_validate": [
+                    {"language": "python", "query": query},
+                    {"language": "python", "query": "(unknown_node)"},
+                ],
+                "syntax_tree": [{"language": "python", "source": source}],
+                "structural_search": [{"language": "python", "source": source, "query": query}],
+            }
+            assert [tool.name for tool in catalog.tools] == list(examples)
+            for tool in catalog.tools:
+                Draft202012Validator.check_schema(tool.inputSchema)
+                Draft202012Validator.check_schema(tool.outputSchema)
+                inputs = Draft202012Validator(tool.inputSchema)
+                outputs = Draft202012Validator(tool.outputSchema)
+                for args in examples[tool.name]:
+                    inputs.validate(args)
+                    result = await client.call_tool(tool.name, args)
+                    assert not result.isError
+                    outputs.validate(result.structuredContent)
+                    assert json.loads(result.content[0].text) == result.structuredContent
+                    if tool.name == "structural_search":
+                        capture, = result.structuredContent["matches"][0]["captures"]
+                        assert capture["name"] == "name" and capture["text"] == "answer"
+                        assert (capture["range"]["startByte"], capture["range"]["endByte"]) == (4, 10)
+                invalid = {**examples[tool.name][0], "extra": True}
+                assert not inputs.is_valid(invalid)
+                assert (await client.call_tool(tool.name, invalid)).isError
 
 
 if __name__ == "__main__":

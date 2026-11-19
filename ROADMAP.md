@@ -28,11 +28,11 @@ Version 0.1.0 is the bootstrap; 1.0.0 requires all release gates below.
 ## 2. Single-file structural search
 
 - [x] Implement languages using the compiled grammar registry.
-- [ ] Implement query_validate, syntax_tree and structural_search.
-- [ ] Add request-local RAII parser/query/tree/cursor ownership and precise UTF-8 byte ranges.
-- [ ] Implement eq?, not-eq? and any-of?; reject unsupported predicates and directives.
-- [ ] Bound source, query, tree dump, match text, captures and complete response sizes.
-- [ ] Return canonical structuredContent plus compatible compact text content.
+- [x] Implement query_validate, syntax_tree and structural_search for inline single-file source.
+- [x] Add request-local RAII parser/query/tree/cursor ownership and precise UTF-8 byte ranges.
+- [x] Implement eq?, not-eq? and any-of?; reject unsupported predicates and directives.
+- [x] Bound source, query, tree dump, match text, captures and complete response sizes.
+- [x] Return canonical structuredContent plus compatible compact text content.
 
 ## 3. Workspace access and consistency
 

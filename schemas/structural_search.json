@@ -1,0 +1,83 @@
+{
+  "name": "structural_search",
+  "description": "Find structural matches and named captures in one inline source using a Tree-sitter query.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "language": {
+        "type": "string",
+        "enum": ["cpp", "python"]
+      },
+      "source": {
+        "type": "string",
+        "minLength": 0,
+        "maxLength": 524288,
+        "x-maxUtf8Bytes": 524288
+      },
+      "query": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 65536,
+        "x-maxUtf8Bytes": 65536
+      },
+      "maxMatches": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 1000,
+        "default": 100
+      }
+    },
+    "required": ["language", "source", "query"],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "matches": {
+        "type": "array",
+        "maxItems": 1000,
+        "items": {
+          "type": "object",
+          "properties": {
+            "patternIndex": { "type": "integer", "minimum": 0 },
+            "captures": {
+              "type": "array",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "range": {
+                    "type": "object",
+                    "properties": {
+                      "startByte": { "type": "integer", "minimum": 0 },
+                      "endByte": { "type": "integer", "minimum": 0 },
+                      "startRow": { "type": "integer", "minimum": 0 },
+                      "startColumn": { "type": "integer", "minimum": 0 },
+                      "endRow": { "type": "integer", "minimum": 0 },
+                      "endColumn": { "type": "integer", "minimum": 0 }
+                    },
+                    "required": ["startByte", "endByte", "startRow", "startColumn", "endRow", "endColumn"],
+                    "additionalProperties": false
+                  },
+                  "text": { "type": "string", "maxLength": 1024, "x-maxUtf8Bytes": 1024 },
+                  "textTruncated": { "type": "boolean" }
+                },
+                "required": ["name", "range", "text", "textTruncated"],
+                "additionalProperties": false
+              }
+            },
+            "capturesTruncated": { "type": "boolean" }
+          },
+          "required": ["patternIndex", "captures", "capturesTruncated"],
+          "additionalProperties": false
+        }
+      },
+      "hasSyntaxErrors": { "type": "boolean" },
+      "truncated": { "type": "boolean" },
+      "incomplete": { "type": "boolean" }
+    },
+    "required": ["matches", "hasSyntaxErrors", "truncated", "incomplete"],
+    "additionalProperties": false
+  }
+}

@@ -38,14 +38,17 @@ add_library(treemcp_core STATIC
     src/mcp/Session.cpp
     src/mcp/StdioServer.cpp
     src/mcp/Tools.cpp
+    src/search/Query.cpp
+    src/search/SingleFile.cpp
 )
-target_include_directories(treemcp_core PUBLIC src/app src/languages src/mcp "${PROJECT_BINARY_DIR}/generated")
+target_include_directories(treemcp_core PUBLIC src/app src/languages src/mcp src/search "${PROJECT_BINARY_DIR}/generated")
 target_link_libraries(treemcp_core PUBLIC Qt6::Core tree_sitter tree_sitter_cpp tree_sitter_python)
 target_link_libraries(treemcp_core PRIVATE yyjson Threads::Threads)
 treemcp_set_warnings(treemcp_core)
 
 add_executable(structural-mcp src/main.cpp)
-qt_add_resources(structural-mcp "tool_catalog" PREFIX "/" FILES schemas/languages.json)
+set(tool_descriptors schemas/languages.json schemas/query_validate.json schemas/syntax_tree.json schemas/structural_search.json)
+qt_add_resources(structural-mcp "tool_catalog" PREFIX "/" FILES ${tool_descriptors})
 target_link_libraries(structural-mcp PRIVATE treemcp_core)
 treemcp_set_warnings(structural-mcp)
 
@@ -57,7 +60,7 @@ include(cmake/Deployment.cmake)
 install(FILES README.md ROADMAP.md LICENSE StyleGuide.CPP.md .clang-format
     DESTINATION "${CMAKE_INSTALL_DOCDIR}")
 install(DIRECTORY docs/ DESTINATION "${CMAKE_INSTALL_DOCDIR}/docs")
-install(FILES schemas/languages.json DESTINATION "${CMAKE_INSTALL_DOCDIR}/schemas")
+install(FILES ${tool_descriptors} DESTINATION "${CMAKE_INSTALL_DOCDIR}/schemas")
 install(DIRECTORY config/ DESTINATION "${CMAKE_INSTALL_DOCDIR}/config")
 install(FILES third_party/dependencies.lock.json third_party/SHA256SUMS
     DESTINATION "${CMAKE_INSTALL_DOCDIR}/third_party")

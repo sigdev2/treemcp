@@ -1,0 +1,43 @@
+{
+  "name": "query_validate",
+  "description": "Compile a Tree-sitter query and check its predicates for one language.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "language": {
+        "type": "string",
+        "enum": ["cpp", "python"]
+      },
+      "query": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 65536,
+        "x-maxUtf8Bytes": 65536
+      }
+    },
+    "required": ["language", "query"],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "valid": { "type": "boolean" },
+      "patternCount": { "type": "integer", "minimum": 1 },
+      "diagnostic": {
+        "type": "object",
+        "properties": {
+          "byteOffset": { "type": "integer", "minimum": 0 },
+          "message": { "type": "string" }
+        },
+        "required": ["byteOffset", "message"],
+        "additionalProperties": false
+      }
+    },
+    "required": ["valid"],
+    "oneOf": [
+      { "properties": { "valid": { "const": true } }, "required": ["patternCount"], "not": { "required": ["diagnostic"] } },
+      { "properties": { "valid": { "const": false } }, "required": ["diagnostic"], "not": { "required": ["patternCount"] } }
+    ],
+    "additionalProperties": false
+  }
+}
