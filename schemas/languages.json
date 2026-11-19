@@ -1,0 +1,28 @@
+{
+  "name": "languages",
+  "description": "List the compiled language IDs and their registered file extensions.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "languages": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "extensions": { "type": "array", "items": { "type": "string" } }
+          },
+          "required": ["id", "extensions"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["languages"],
+    "additionalProperties": false
+  }
+}

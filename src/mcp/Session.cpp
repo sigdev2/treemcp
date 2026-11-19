@@ -1,5 +1,7 @@
 #include "Session.hpp"
 
+#include "Tools.hpp"
+
 #include "treemcp/Version.hpp"
 
 namespace treemcp {
@@ -53,6 +55,12 @@ std::optional<QJsonObject> Session::dispatch(const JsonRpc::Request& request)
     if (phase != Phase::Ready) {
         return JsonRpc::error(id, -32002, QStringLiteral("Complete initialization first"));
     }
+    if (request.method == "tools/list") {
+        return Tools::list(id, params);
+    }
+    if (request.method == "tools/call") {
+        return Tools::call(id, params);
+    }
     return JsonRpc::error(id, -32601, QStringLiteral("Method not found"));
 }
 
@@ -74,7 +82,7 @@ QJsonObject Session::initialize(const QJsonValue& id, const QJsonObject& params)
     return JsonRpc::success(
         id,
         { { "protocolVersion", "2025-11-25" },
-          { "capabilities", QJsonObject {} },
+          { "capabilities", QJsonObject { { "tools", QJsonObject {} } } },
           { "serverInfo",
             QJsonObject { { "name", "structural-mcp" }, { "version", QString::fromLatin1(VERSION) } } } });
 }

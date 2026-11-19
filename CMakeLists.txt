@@ -36,6 +36,7 @@ add_library(treemcp_core STATIC
     src/mcp/JsonRpc.cpp
     src/mcp/Session.cpp
     src/mcp/StdioServer.cpp
+    src/mcp/Tools.cpp
 )
 target_include_directories(treemcp_core PUBLIC src/app src/languages src/mcp "${PROJECT_BINARY_DIR}/generated")
 target_link_libraries(treemcp_core PUBLIC Qt6::Core tree_sitter tree_sitter_cpp tree_sitter_python)
@@ -43,6 +44,7 @@ target_link_libraries(treemcp_core PRIVATE yyjson)
 treemcp_set_warnings(treemcp_core)
 
 add_executable(structural-mcp src/main.cpp)
+qt_add_resources(structural-mcp "tool_catalog" PREFIX "/" FILES schemas/languages.json)
 target_link_libraries(structural-mcp PRIVATE treemcp_core)
 treemcp_set_warnings(structural-mcp)
 
