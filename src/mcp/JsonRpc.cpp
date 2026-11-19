@@ -1,6 +1,7 @@
 #include "JsonRpc.hpp"
 
 #include <QJsonArray>
+#include <QStringDecoder>
 
 #include <yyjson.h>
 
@@ -16,7 +17,9 @@ constexpr size_t MAX_ID_BYTES = 1024;
 
 QString stringValue(yyjson_val* value)
 {
-    return QString::fromUtf8(yyjson_get_str(value), static_cast<qsizetype>(yyjson_get_len(value)));
+    // U+FEFF inside a JSON string is data, including at the start of a request ID.
+    QStringDecoder decoder(QStringDecoder::Utf8, QStringDecoder::Flag::ConvertInitialBom);
+    return decoder.decode({ yyjson_get_str(value), static_cast<qsizetype>(yyjson_get_len(value)) });
 }
 
 // Undefined propagates duplicate keys or excessive nesting without conflating them with JSON null.

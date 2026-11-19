@@ -18,7 +18,11 @@ bool Framer::feed(QByteArrayView chunk, const Receiver& receive)
         if (newline < 0) {
             break;
         }
-        if (!receive(pending)) {
+        QByteArrayView record(pending);
+        if (record.endsWith('\r')) {
+            record.chop(1);
+        }
+        if (!receive(record.contains('\r') ? QByteArrayView {} : record)) {
             return false;
         }
         pending.clear();

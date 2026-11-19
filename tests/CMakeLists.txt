@@ -7,7 +7,13 @@ target_link_libraries(check-decoder PRIVATE treemcp_core)
 treemcp_set_warnings(check-decoder)
 add_test(NAME protocol.decoder COMMAND check-decoder)
 
-set(protocol_tests bootstrap.runtime bootstrap.cli protocol.decoder)
+add_executable(check-protocol CheckProtocol.cpp)
+target_link_libraries(check-protocol PRIVATE Qt6::Core)
+treemcp_set_warnings(check-protocol)
+add_test(NAME protocol.stdio COMMAND check-protocol "$<TARGET_FILE:structural-mcp>"
+    "${PROJECT_SOURCE_DIR}/schemas/languages.json")
+
+set(protocol_tests bootstrap.runtime bootstrap.cli protocol.decoder protocol.stdio)
 set_tests_properties(${protocol_tests} PROPERTIES TIMEOUT 15)
 if(WIN32)
     get_filename_component(compiler_directory "${CMAKE_CXX_COMPILER}" DIRECTORY)

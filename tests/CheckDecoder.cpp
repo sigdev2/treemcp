@@ -17,8 +17,8 @@ bool checkFrames()
     const QByteArray limit(treemcp::Framer::MAX_FRAME_BYTES, 'x');
     return framer.feed("one\ntw", collect) && framer.feed("o\r\n", collect) && framer.feed(limit, collect) &&
         framer.feed("\n", collect) && framer.feed(limit, collect) && framer.feed("x", collect) &&
-        framer.feed("bad\nok\npartial", collect) && framer.finish(collect) && framer.finish(collect) &&
-        records == QList<QByteArray> { "one", "two\r", limit, "", "ok", "" };
+        framer.feed("bad\nok\n{\r}\npartial", collect) && framer.finish(collect) && framer.finish(collect) &&
+        records == QList<QByteArray> { "one", "two", limit, "", "ok", "", "" };
 }
 
 bool checkError(const QByteArray& frame, int code)
@@ -47,6 +47,12 @@ int main()
     const auto* request = std::get_if<Request>(&decoded);
     if (request == nullptr || !QJsonDocument(success(request->id, {})).toJson().contains("9223372036854775807")) {
         qCritical() << "Integer ID lost precision";
+        return 1;
+    }
+    const auto unicode = decode(R"({"jsonrpc":"2.0","id":"\ufeff\u0000\ud83d\ude80","method":"ping"})");
+    const auto* unicodeRequest = std::get_if<Request>(&unicode);
+    if (unicodeRequest == nullptr || unicodeRequest->id.toString() != QStringLiteral("\uFEFF\0\U0001F680")) {
+        qCritical() << "Unicode ID changed during decoding";
         return 1;
     }
     return 0;

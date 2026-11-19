@@ -26,6 +26,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 include(cmake/Dependencies.cmake)
+find_package(Threads REQUIRED)
 
 configure_file(cmake/Version.hpp.in generated/treemcp/Version.hpp @ONLY)
 
@@ -40,7 +41,7 @@ add_library(treemcp_core STATIC
 )
 target_include_directories(treemcp_core PUBLIC src/app src/languages src/mcp "${PROJECT_BINARY_DIR}/generated")
 target_link_libraries(treemcp_core PUBLIC Qt6::Core tree_sitter tree_sitter_cpp tree_sitter_python)
-target_link_libraries(treemcp_core PRIVATE yyjson)
+target_link_libraries(treemcp_core PRIVATE yyjson Threads::Threads)
 treemcp_set_warnings(treemcp_core)
 
 add_executable(structural-mcp src/main.cpp)
@@ -56,6 +57,7 @@ include(cmake/Deployment.cmake)
 install(FILES README.md ROADMAP.md LICENSE StyleGuide.CPP.md .clang-format
     DESTINATION "${CMAKE_INSTALL_DOCDIR}")
 install(DIRECTORY docs/ DESTINATION "${CMAKE_INSTALL_DOCDIR}/docs")
+install(FILES schemas/languages.json DESTINATION "${CMAKE_INSTALL_DOCDIR}/schemas")
 install(DIRECTORY config/ DESTINATION "${CMAKE_INSTALL_DOCDIR}/config")
 install(FILES third_party/dependencies.lock.json third_party/SHA256SUMS
     DESTINATION "${CMAKE_INSTALL_DOCDIR}/third_party")
