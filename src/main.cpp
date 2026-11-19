@@ -1,6 +1,7 @@
 #include "treemcp/Version.hpp"
 
 #include "SelfCheck.hpp"
+#include "StdioServer.hpp"
 
 #include <QCommandLineParser>
 #include <QCoreApplication>
@@ -16,7 +17,7 @@ int main(int argc, char* argv[])
     QCoreApplication::setApplicationVersion(QString::fromLatin1(treemcp::VERSION));
 
     QCommandLineParser arguments;
-    arguments.setApplicationDescription(QStringLiteral("TreeMCP bootstrap executable."));
+    arguments.setApplicationDescription(QStringLiteral("TreeMCP stdio server."));
     const QCommandLineOption helpOption = arguments.addHelpOption();
     const QCommandLineOption versionOption = arguments.addVersionOption();
     const QCommandLineOption selfCheckOption(
@@ -24,7 +25,6 @@ int main(int argc, char* argv[])
         QStringLiteral("Check the embedded Tree-sitter runtime and grammars, then exit."));
     arguments.addOption(selfCheckOption);
 
-    // CLI diagnostics also stay off stdout, which is reserved for the future MCP transport.
     QTextStream diagnostics(stderr);
     if (!arguments.parse(application.arguments())) {
         diagnostics << arguments.errorText() << '\n';
@@ -38,9 +38,12 @@ int main(int argc, char* argv[])
         diagnostics << "structural-mcp " << treemcp::VERSION << '\n';
         return 0;
     }
-    if (!arguments.positionalArguments().isEmpty() || !arguments.isSet(selfCheckOption)) {
-        diagnostics << "The MCP transport is not implemented yet. Use --self-check or --help.\n";
+    if (!arguments.positionalArguments().isEmpty()) {
+        diagnostics << "Unexpected positional argument. Use --help.\n";
         return 2;
+    }
+    if (!arguments.isSet(selfCheckOption)) {
+        return treemcp::StdioServer::run(application);
     }
 
     QTimer::singleShot(0, &application, []() {

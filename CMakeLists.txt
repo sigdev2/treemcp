@@ -34,6 +34,8 @@ add_library(treemcp_core STATIC
     src/languages/LanguageRegistry.cpp
     src/mcp/Framer.cpp
     src/mcp/JsonRpc.cpp
+    src/mcp/Session.cpp
+    src/mcp/StdioServer.cpp
 )
 target_include_directories(treemcp_core PUBLIC src/app src/languages src/mcp "${PROJECT_BINARY_DIR}/generated")
 target_link_libraries(treemcp_core PUBLIC Qt6::Core tree_sitter tree_sitter_cpp tree_sitter_python)
