@@ -43,6 +43,20 @@ Version 0.1.0 is the bootstrap; 1.0.0 requires all release gates below.
 - [x] Read through an opened handle, compare metadata before/after and retry at most once.
 - [x] Verify file changes and removals are visible on the next request without restarting.
 
+### Configurable search exclusions
+
+- [ ] Extend recursive traversal in `structural_search` and `batch_search` to skip
+  directories with these exact names at any depth by default: `docs`, `cmake`,
+  `build`, `CMakeFiles`, `dist`, `coverage` and `__pycache__`.
+  Skip each directory before enumerating its contents.
+- [ ] Add a repeatable server argument `--ignore-dir <name>`. When supplied, its
+  values replace the default directory list. Keep per-request `exclude` globs
+  available for additional exclusions.
+- [ ] Test both searches with default and custom lists, including nested directories
+  and similarly named siblings such as `build_tools`. Verify that dot-prefixed files
+  and directories stay excluded with either list and that nested `.gitignore` rules
+  still apply in visited directories.
+
 ## 4. Batch search (required for MVP)
 
 - [x] Implement batch_search with unique IDs, explicit item languages and shared file scope.
