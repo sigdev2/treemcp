@@ -26,6 +26,17 @@ void checkValidation(const ToolCall& call)
         validate(prefix + "((integer) @v (#eq? @n @v))").value("valid") == false,
         "Accepted a predicate capture bound only by a different pattern");
     require(error.value("byteOffset") == prefix.toUtf8().size() + 1, "Incorrect compiler byte offset");
+    const QString fieldPrefix = prefix + "(call ";
+    const auto badField = validate(fieldPrefix + "callee: (identifier))");
+    require(
+        badField.value("valid") == false &&
+            badField.value("diagnostic").toObject().value("byteOffset") == fieldPrefix.toUtf8().size(),
+        "Expected the unknown field's UTF-8 byte offset");
+    const auto embeddedNul = validate(prefix + QChar::Null + "(integer)");
+    require(
+        embeddedNul.value("valid") == false &&
+            embeddedNul.value("diagnostic").toObject().value("byteOffset") == prefix.toUtf8().size(),
+        "Validation accepted a query prefix ending at an embedded NUL");
 
     const QString predicates = prefix + QStringLiteral("((identifier) @x (#eq? @x \"(#ignored?)\") ; (#fake!)\n ");
     for (const QString& bad : QStringList { "(#match? @x \"a\")", "(#set! k v)", "(#eq? @x)", "(#any-of? @x @x)" }) {
@@ -163,6 +174,26 @@ void checkMatches(const ToolCall& call)
     require(call("structural_search", args).value("isError") == true, "Invalid search query must fail");
 }
 
+void checkPredicateBeforeClipping(const ToolCall& call)
+{
+    const QString prefix(1024, 'x');
+    const QString wanted = prefix + 'b';
+    const QJsonObject args { { "language", "python" },
+                             { "source", prefix + "a\n" + wanted },
+                             { "query", "((identifier) @id (#eq? @id \"" + wanted + "\"))" },
+                             { "maxMatches", 1 } };
+    const auto result = call("structural_search", args);
+    const auto matches = result.value("matches").toArray();
+    require(matches.size() == 1 && result.value("incomplete") == false, "Expected one full-text predicate match");
+    const auto captures = matches.first().toObject().value("captures").toArray();
+    require(captures.size() == 1, "Expected the matching identifier capture");
+    const auto capture = captures.first().toObject();
+    require(
+        capture.value("text") == prefix && capture.value("textTruncated") == true &&
+            capture.value("range").toObject().value("startRow") == 1 && result.value("truncated") == true,
+        "The predicate must distinguish identifiers with identical clipped text");
+}
+
 void checkResponseBudget(const ToolCall& call)
 {
     const QString line = '"' + QStringLiteral("\\\"").repeated(380) + QStringLiteral("\"\n");
@@ -198,6 +229,7 @@ void checkSearch(const ToolCall& call)
     checkCaptureBindings(call);
     checkTree(call);
     checkMatches(call);
+    checkPredicateBeforeClipping(call);
     checkResponseBudget(call);
     checkCursorLimit(call);
 }

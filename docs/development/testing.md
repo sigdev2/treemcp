@@ -17,7 +17,12 @@ Every build helper runs CTest after compilation. Current checks are:
 - `search.stdio` calls all three single-file tools over the wire. It covers C++
   and Python queries, UTF-8 offsets and columns, predicate diagnostics, syntax
   recovery, cursor exhaustion and the input, capture, tree and response limits.
-
+- `search.queries` uses Python 3 to run the same queries against inline source,
+  a file, a directory and a batch. Explicit expected matches cover Python
+  imports, decorators, awaited calls and comprehensions, C++ includes, declarations,
+  qualified templates and member calls, pairwise predicates over repeated
+  captures, capture-free matches and searches on recovered syntax trees.
+  The checks preserve capture order and verify UTF-8 ranges against the source.
 - `workspace.stdio` runs when CMake finds Python 3. It uses the standard library
   and a temporary workspace to exercise filters, overlapping scopes, path and file
   limits, in-session edits, replacements, deletions and a directory swap during

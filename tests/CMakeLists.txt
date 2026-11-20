@@ -17,13 +17,15 @@ add_test(NAME search.stdio COMMAND check-protocol "$<TARGET_FILE:structural-mcp>
 set(protocol_tests bootstrap.runtime bootstrap.cli protocol.decoder protocol.stdio search.stdio)
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
+    add_test(NAME search.queries COMMAND "${Python3_EXECUTABLE}"
+        -B "${CMAKE_CURRENT_SOURCE_DIR}/check_search_queries.py" "$<TARGET_FILE:structural-mcp>")
     add_test(NAME workspace.stdio COMMAND "${Python3_EXECUTABLE}"
         "${CMAKE_CURRENT_SOURCE_DIR}/check_workspace.py" "$<TARGET_FILE:structural-mcp>")
     foreach(suite correctness corpus)
         add_test(NAME batch.${suite} COMMAND "${Python3_EXECUTABLE}"
             -B "${CMAKE_CURRENT_SOURCE_DIR}/check_batch.py" "$<TARGET_FILE:structural-mcp>" "${suite}")
     endforeach()
-    list(APPEND protocol_tests workspace.stdio batch.correctness batch.corpus)
+    list(APPEND protocol_tests search.queries workspace.stdio batch.correctness batch.corpus)
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
