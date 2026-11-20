@@ -122,7 +122,7 @@ WorkspaceNode WorkspaceNode::child(const QString& component) const
         reinterpret_cast<qintptr>(handle));
 }
 
-bool WorkspaceNode::list(const std::function<bool(const QString&)>& visit) const
+bool WorkspaceNode::list(const EntryVisitor& visit) const
 {
     // Each synchronous walk owns its cursor until the callback returns. The
     // startup root is reused, so explicitly restart its cursor on every walk.
@@ -136,7 +136,11 @@ bool WorkspaceNode::list(const std::function<bool(const QString&)>& visit) const
             const void* address = buffer.data() + offset;
             const auto* entry = static_cast<const FILE_ID_BOTH_DIR_INFO*>(address);
             const auto length = static_cast<qsizetype>(entry->FileNameLength / sizeof(WCHAR));
-            if (!visit(QString::fromWCharArray(entry->FileName, length))) {
+            const QString name = QStringView(entry->FileName, length).toString();
+            const bool regularFile =
+                !(entry->FileAttributes &
+                  (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_DEVICE));
+            if (!visit(name, regularFile)) {
                 return true;
             }
             if (!entry->NextEntryOffset) {

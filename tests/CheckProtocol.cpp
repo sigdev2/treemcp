@@ -93,6 +93,10 @@ void checkRecovery(QProcess& server)
     expectError(server, noId, -32700);
     expectError(server, noId, -32700);
     expectError(server, noId, -32600);
+    server.write("{\"jsonrpc\":\"2.0\",\"id\":73,\"method\":\"ping\",\"params\":{\"k\":1,\"k\":2}}\n");
+    expectError(server, 73, -32600);
+    server.write("{\"jsonrpc\":\"2.0\",\"id\":1,\"id\":2,\"method\":\"ping\"}\n");
+    expectError(server, noId, -32600);
     server.write(message(noId, "notifications/cancelled", QJsonObject { { "requestId", 5 } }));
     server.write(message(noId, "notifications/example"));
     server.write("{\"jsonrpc\":\"2.0\",\"id\":5,\"result\":{}}\n");

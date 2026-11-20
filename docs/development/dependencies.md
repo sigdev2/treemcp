@@ -18,9 +18,15 @@ grammar metadata file and license. CMake validates these hashes on every configu
 The runtime's `lib/include` and `lib/src`, and each grammar's generated `src`, are
 included directly. Grammar generators are not needed to build the repository.
 
+The Tree-sitter query compiler carries one local change. It reports an error
+at the capture that exceeds the runtime's three capture slots on a query step.
+The public error enum appends `TSQueryErrorCaptureLimit` so TreeMCP can return
+a specific diagnostic. The lock file lists the two changed files.
+
 To update a dependency, check out the intended upstream commit in a temporary
 development directory, inspect its license and changes, copy the selected source
-directories without modifying their bytes, and regenerate its revision and hashes.
+directories, re-evaluate the recorded local changes, and regenerate its revision
+and hashes for the final checked-in bytes.
 Review the diff and run both platform builds and grammar tests. Never replace an
 exact revision with a moving branch or silently bypass a checksum failure.
 

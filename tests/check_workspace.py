@@ -66,6 +66,16 @@ def captures(result):
     return sorted((match["path"], match["captures"][0]["text"]) for match in result["matches"])
 
 
+def check_unicode_names(call, root):
+    write(root, "unicode/n.py", "plain\n")
+    write(root, "unicode/\ufeffn.py", "prefixed\n")
+    found = call(paths=["unicode"])
+    assert not found["incomplete"], found
+    for path, name in (("unicode/n.py", "plain"), ("unicode/\ufeffn.py", "prefixed")):
+        assert captures(call(path=path)) == [(path, name)]
+    assert captures(found) == [("unicode/n.py", "plain"), ("unicode/\ufeffn.py", "prefixed")], found
+
+
 def junction_or_link(target, link):
     if os.name == "nt":
         import _winapi
@@ -124,6 +134,8 @@ def check_filters(call, root, outside):
         assert ctypes.windll.kernel32.SetFileAttributesW(str(hidden), 2)
         with (root / "test.py").open("ab") as writer:
             assert call(path="test.py").get("isError")
+            result = call(paths=["."], include=["src/sub/local.py"])
+            assert not result["incomplete"] and captures(result) == [("src/sub/local.py", "identifier")], result
             writer.write(b"")
     else:
         (root / "filelink.py").symlink_to(outside / "outside.py")
@@ -206,6 +218,7 @@ def main():
             check_inputs(call, root)
             check_freshness(call, root)
             check_filters(call, root, outside)
+            check_unicode_names(call, root)
             check_directory_swap(call, root, outside)
             if os.name != "nt":
                 pinned = root.rename(root.parent / "pinned")

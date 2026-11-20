@@ -33,8 +33,9 @@ class WorkspaceNode {
 public:
     static WorkspaceNode openRoot(const QString& path);
     WorkspaceNode child(const QString& component) const;
-    // The callback returns false to stop enumeration early.
-    bool list(const std::function<bool(const QString&)>& visit) const;
+    // The regular-file hint is for filtering. Always validate the opened handle before reading.
+    using EntryVisitor = std::function<bool(const QString& name, bool regularFile)>;
+    bool list(const EntryVisitor& visit) const;
     ~WorkspaceNode();
     WorkspaceNode(WorkspaceNode&& other) noexcept;
     WorkspaceNode(const WorkspaceNode&) = delete;
@@ -59,6 +60,7 @@ private:
 
 bool validComponent(const QString& component);
 bool validSelector(const QString& path);
+inline constexpr qsizetype MAX_PATH_BYTES = 4096;
 
 } // namespace treemcp
 

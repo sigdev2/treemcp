@@ -147,7 +147,6 @@ QString findMatches(
     }
     ts_query_cursor_set_match_limit(cursor.get(), 256);
     ts_query_cursor_exec(cursor.get(), compiled.query.get(), root);
-    results.syntaxErrors |= ts_node_has_error(root);
     TSQueryMatch match {};
     while (ts_query_cursor_next_match(cursor.get(), &match)) {
         const auto& predicates = compiled.predicates.at(match.pattern_index);
@@ -206,6 +205,7 @@ Result parseSource(
     if (treeMode) {
         return dumpTree(root, arguments.value("maxDepth").toInt(), arguments.value("maxNodes").toInt());
     }
+    results.syntaxErrors |= ts_node_has_error(root);
     const QString error = findMatches(root, source, compiled, arguments.value("maxMatches").toInt(), path, results);
     if (!error.isEmpty()) {
         return error;
@@ -237,7 +237,11 @@ Result searchScope(
     const auto report = [&](const QString& path, const QString& message) {
         results.incomplete = true;
         if (diagnostics.size() < 16) {
-            diagnostics.append(QJsonObject { { "path", path.left(256) }, { "message", message } });
+            QString clipped = path.left(256);
+            if (!clipped.isEmpty() && clipped.back().isHighSurrogate()) {
+                clipped.chop(1);
+            }
+            diagnostics.append(QJsonObject { { "path", clipped }, { "message", message } });
         }
     };
     const QString error = scanWorkspace(
@@ -269,7 +273,7 @@ Result run(const QString& name, const QJsonObject& arguments, const WorkspaceNod
     }
     CompiledQuery compiled;
     if (name != "syntax_tree") {
-        const auto diagnostic = compiled.compile(grammar->language, arguments.value("query").toString().toUtf8());
+        const auto diagnostic = compiled.compile(grammar->language, arguments.value("query").toString());
         if (diagnostic) {
             if (name == "query_validate") {
                 return QJsonObject { { "valid", false },

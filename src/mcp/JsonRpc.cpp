@@ -77,6 +77,21 @@ bool validId(yyjson_val* id)
         (yyjson_is_uint(id) && yyjson_get_uint(id) <= std::numeric_limits<qint64>::max());
 }
 
+QJsonValue errorId(yyjson_val* root, yyjson_val* id)
+{
+    if (!validId(id)) {
+        return QJsonValue::Undefined;
+    }
+    // Conversion can reject params while the top-level ID is still unambiguous.
+    auto iterator = yyjson_obj_iter_with(root);
+    while (yyjson_val* key = yyjson_obj_iter_next(&iterator)) {
+        if (yyjson_equals_str(key, "id") && yyjson_obj_iter_get_val(key) != id) {
+            return QJsonValue::Undefined;
+        }
+    }
+    return convert(id, 0);
+}
+
 } // namespace
 
 QJsonObject error(const QJsonValue& id, int code, const QString& message)
@@ -104,7 +119,7 @@ Decoded decode(QByteArrayView frame)
     yyjson_val* rawId = yyjson_obj_get(root, "id");
     const QJsonValue id = object.value("id");
     if (object.value("jsonrpc") != QStringLiteral("2.0") || (rawId != nullptr && !validId(rawId))) {
-        return error(validId(rawId) ? id : QJsonValue::Undefined, -32600, QStringLiteral("Invalid request"));
+        return error(errorId(root, rawId), -32600, QStringLiteral("Invalid request"));
     }
 
     const QJsonValue method = object.value("method");

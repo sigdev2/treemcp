@@ -8,6 +8,8 @@ Every build helper runs CTest after compilation. Current checks are:
   exit status and diagnostics; none writes to protocol stdout.
 - `protocol.decoder` covers fragmented and oversized frames, strict JSON/UTF-8,
   ambiguous envelopes, integer precision and Unicode ID preservation.
+- `protocol.session-memory` uses the Linux ASan allocator to check that a
+  live session releases completed request payloads while remembering string IDs.
 - `protocol.stdio` launches the real executable, negotiates the revision, validates
   the catalog and call results, pipelines 1,000 requests with mixed ID types,
   checks error recovery and closes stdin with replies still to read.

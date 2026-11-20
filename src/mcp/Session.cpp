@@ -42,7 +42,8 @@ std::optional<QJsonObject> Session::dispatch(const JsonRpc::Request& request)
     if (usedIds.size() >= MAX_SESSION_REQUESTS) {
         return JsonRpc::error(id, -32001, QStringLiteral("Session request limit reached. Start a new session."));
     }
-    usedIds.insert(id);
+    // A string value extracted from a JSON object can share the entire request container.
+    usedIds.insert(id.isString() ? QJsonValue(id.toString()) : id);
     if (!validParams) {
         return JsonRpc::error(id, -32602, QStringLiteral("Expected an object for params and optional _meta"));
     }

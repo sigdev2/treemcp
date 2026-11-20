@@ -81,7 +81,7 @@ private:
             return;
         }
         QSet<QString> found;
-        const bool listed = directory.list([&](const QString& name) {
+        const bool listed = directory.list([&](const QString& name, bool regularFile) {
             if (++entries > 100000) {
                 report(directoryPath, QStringLiteral("Directory entry limit exceeded"));
                 stopped = true;
@@ -99,7 +99,7 @@ private:
                 const Selection& child = selection.all ? ALL : explicitChild->second;
                 QStringList parts = prefix;
                 parts.append(name);
-                process(directory, parts, child, rules);
+                process(directory, parts, child, rules, regularFile);
             }
             return !stopped && (selection.all || static_cast<size_t>(found.size()) < selection.children.size());
         });
@@ -120,21 +120,34 @@ private:
         const WorkspaceNode& parent,
         const QStringList& parts,
         const Selection& selection,
-        const IgnoreRules& rules)
+        const IgnoreRules& rules,
+        bool regularFile)
     {
         const QString& name = parts.back();
         const QString path = parts.join('/');
-        if (parts.size() > 64 || path.size() > 4096) {
+        if (parts.size() > 64 || path.toUtf8().size() > MAX_PATH_BYTES) {
             report(path, QStringLiteral("Workspace path limit exceeded"));
             return;
         }
         const auto excluded = [&](bool dir) { return matches(exclude, parts, dir) || rules.excludes(parts, dir); };
-        if (excluded(false) && excluded(true)) {
+        const bool excludeFile = excluded(false);
+        const bool excludeDirectory = excluded(true);
+        if (excludeFile && excludeDirectory) {
+            return;
+        }
+        const auto eligibleFile = [&] {
+            return !excludeFile && (include.isEmpty() || matches(include, parts, false)) &&
+                (scope.extensions.isEmpty() ||
+                 std::any_of(scope.extensions.begin(), scope.extensions.end(), [&](const QString& suffix) {
+                     return name.endsWith(suffix);
+                 }));
+        };
+        if (regularFile && selection.all && !eligibleFile()) {
             return;
         }
         const auto node = parent.child(name);
         if (node.kind() == NodeKind::Directory) {
-            if (!excluded(true) && !(scope.singleFile && selection.all)) {
+            if (!excludeDirectory && !(scope.singleFile && selection.all)) {
                 walk(node, parts, selection, rules);
             }
             return;
@@ -146,14 +159,7 @@ private:
             report(path, QStringLiteral("Cannot open selected workspace entry"));
             return;
         }
-        if (excluded(false) || (!include.isEmpty() && !matches(include, parts, false))) {
-            return;
-        }
-        if (!scope.extensions.isEmpty() &&
-            !std::any_of(scope.extensions.begin(), scope.extensions.end(), [&](const QString& suffix) {
-                return name.endsWith(suffix);
-            }))
-        {
+        if (!regularFile && !eligibleFile()) {
             return;
         }
         if (++files > 10000) {

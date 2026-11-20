@@ -171,6 +171,7 @@ typedef enum TSQueryError {
   TSQueryErrorCapture,
   TSQueryErrorStructure,
   TSQueryErrorLanguage,
+  TSQueryErrorCaptureLimit,
 } TSQueryError;
 
 typedef struct TSQueryCursorState {

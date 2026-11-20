@@ -34,7 +34,7 @@ struct Predicate {
 struct CompiledQuery {
     Query query { nullptr, ts_query_delete };
     QList<QList<Predicate>> predicates;
-    std::optional<QueryDiagnostic> compile(const TSLanguage* language, const QByteArray& source);
+    std::optional<QueryDiagnostic> compile(const TSLanguage* language, const QString& source);
 };
 
 } // namespace treemcp

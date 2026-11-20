@@ -45,6 +45,35 @@ void checkValidation(const ToolCall& call)
         "Unknown language accepted");
 }
 
+void checkCaptureBindings(const ToolCall& call)
+{
+    const auto search = [&](const QString& query, const QString& source) {
+        return call("structural_search", { { "language", "python" }, { "query", query }, { "source", source } });
+    };
+    for (const QString& query : QStringList { "((identifier) @a @b @c @d (#eq? @d \"beta\"))",
+                                              "((identifier) @a @b @c) @d",
+                                              "[(integer) (identifier) @a @b @c] @d" })
+    {
+        const auto validation = call("query_validate", { { "language", "python" }, { "query", query } });
+        const auto diagnostic = validation.value("diagnostic").toObject();
+        require(
+            validation.value("valid") == false && diagnostic.value("byteOffset") == query.indexOf("@d") &&
+                diagnostic.value("message").toString().contains("three captures"),
+            "A capture lost on a query step must be rejected at its binding");
+        require(search(query, "alpha = 1").value("isError") == true, "Search accepted a query that loses captures");
+    }
+
+    const auto matches =
+        search("(assignment left: (identifier) @a @b @c right: (integer) @d)", "alpha = 1").value("matches").toArray();
+    require(
+        matches.size() == 1 && matches.first().toObject().value("captures").toArray().size() == 4,
+        "Legal bindings on separate query steps were lost");
+    const auto optional = search(
+        "((call function: (identifier) @fn arguments: (argument_list (identifier)? @arg)) (#eq? @arg \"x\"))",
+        "f()\nf(x)\n");
+    require(optional.value("matches").toArray().size() == 2, "An absent optional capture should pass equality");
+}
+
 void checkTree(const ToolCall& call)
 {
     QJsonObject args { { "language", "cpp" }, { "source", "int main() { return 1; }\n" }, { "maxDepth", 0 } };
@@ -166,6 +195,7 @@ void checkCursorLimit(const ToolCall& call)
 void checkSearch(const ToolCall& call)
 {
     checkValidation(call);
+    checkCaptureBindings(call);
     checkTree(call);
     checkMatches(call);
     checkResponseBudget(call);

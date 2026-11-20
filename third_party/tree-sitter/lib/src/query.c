@@ -841,13 +841,14 @@ static QueryStep query_step__new(
   return step;
 }
 
-static void query_step__add_capture(QueryStep *self, uint16_t capture_id) {
+static bool query_step__add_capture(QueryStep *self, uint16_t capture_id) {
   for (unsigned i = 0; i < MAX_STEP_CAPTURE_COUNT; i++) {
     if (self->capture_ids[i] == NONE) {
       self->capture_ids[i] = capture_id;
-      break;
+      return true;
     }
   }
+  return false;
 }
 
 static void query_step__remove_capture(QueryStep *self, uint16_t capture_id) {
@@ -2750,7 +2751,10 @@ static TSQueryError ts_query__parse_pattern(
       uint32_t step_index = starting_step_index;
       for (;;) {
         QueryStep *step = array_get(&self->steps, step_index);
-        query_step__add_capture(step, capture_id);
+        if (!query_step__add_capture(step, capture_id)) {
+          stream_reset(stream, capture_name - 1);
+          return TSQueryErrorCaptureLimit;
+        }
         if (
           step->alternative_index != NONE &&
           step->alternative_index > step_index &&

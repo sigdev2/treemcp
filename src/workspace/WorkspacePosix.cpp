@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <QFile>
 #include <QScopeGuard>
+#include <QStringDecoder>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -51,7 +52,7 @@ WorkspaceNode WorkspaceNode::child(const QString& component) const
     return WorkspaceNode(S_ISDIR(opened.st_mode) ? NodeKind::Directory : NodeKind::File, fd);
 }
 
-bool WorkspaceNode::list(const std::function<bool(const QString&)>& visit) const
+bool WorkspaceNode::list(const EntryVisitor& visit) const
 {
     // A new open file description gives this iterator an independent offset.
     const int fd = openat(static_cast<int>(native), ".", O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
@@ -70,9 +71,17 @@ bool WorkspaceNode::list(const std::function<bool(const QString&)>& visit) const
         if (!entry) {
             return errno == 0;
         }
-        const QByteArray name(entry->d_name);
-        const QString decoded = QString::fromUtf8(name);
-        if (!visit(decoded.toUtf8() == name ? decoded : QString())) {
+        const QByteArrayView name(entry->d_name);
+        QStringDecoder decoder(
+            QStringDecoder::Utf8,
+            QStringDecoder::Flag::ConvertInitialBom | QStringDecoder::Flag::Stateless);
+        const QString decoded = decoder.decode(name);
+        bool regularFile = entry->d_type == DT_REG;
+        if (entry->d_type == DT_UNKNOWN) {
+            struct stat info {};
+            regularFile = fstatat(fd, entry->d_name, &info, AT_SYMLINK_NOFOLLOW) == 0 && S_ISREG(info.st_mode);
+        }
+        if (!visit(decoder.hasError() ? QString() : decoded, regularFile)) {
             return true;
         }
     }

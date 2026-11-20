@@ -35,7 +35,7 @@
 805520eb9fb1e590a1470d740f5afa29cd48aa4f681b887d171cef13ad600aca  tree-sitter/lib/src/wasm/wasm-stdlib.h
 8d94832d6d68784252b2ff4c8abf9c37dd1672d2af9c4ab5588f342ed44b106e  tree-sitter/lib/src/tree_cursor.c
 8f40396e431d7ff558694ca248eed1332b6cf6f7e6255f06cddfde78020bd308  tree-sitter/lib/src/reduce_action.h
-937c5389713f99318ac7adbdb3a95e9976bbd211e35e37ed5df878f29aa86c30  tree-sitter/lib/include/tree_sitter/api.h
+655584fc1b091ebaebcfc7ad0054bc2470a02e326a8c1ae22e387ab9f5a73152  tree-sitter/lib/include/tree_sitter/api.h
 9380a9984a3a071d6a32ed05f7fad8b8853afa991f0a36cc29ccb90f1e3a1a0f  tree-sitter/lib/src/subtree.h
 a1f6ef161fbaf48a0e10fca90ef5290a062462b307b3898aa562993853b9f80a  tree-sitter-cpp/src/tree_sitter/parser.h
 a2456847bea3adff5b2222b2f7b03a870159470d8908622204e6eb29ee2fe45e  tree-sitter-python/src/node-types.json
@@ -48,7 +48,7 @@ abd8fa83a805900f8e03b8b2b1abd47f9c7b8252f4401485c060348c407f5448  tree-sitter/li
 ac1ec4b7ba388a9d8708feeb6c5c766b2927cecfd6db644b939772e1dc086526  tree-sitter/lib/src/ts_assert.h
 b29c1c9fb7cc82f58c84b376df1297d6e2737a1d655fd356db0859e3c29c2fea  tree-sitter-cpp/src/tree_sitter/alloc.h
 b29c1c9fb7cc82f58c84b376df1297d6e2737a1d655fd356db0859e3c29c2fea  tree-sitter-python/src/tree_sitter/alloc.h
-b2a0f2204cfa050b072b510a8299f919c2ec38ae1495c76174990ee2cafae707  tree-sitter/lib/src/query.c
+6e86775a6300fa1c50348ac2a10a61a666b16a2ad4c2c2432b1120cf007cf250  tree-sitter/lib/src/query.c
 bb3434364fd50960a2c0936e211f66c9fa005a0dcea26de63692ebae3ae33c83  tree-sitter/lib/src/wasm_store.c
 bbc630cb913ac64274ce4412bc9d504174220323993f306ded74abe502867e74  tree-sitter/lib/src/atomic.h
 bfe9c7867881142600ad48570ef345dbb2b25319e61e1e08c7a15cc519dcb6a6  tree-sitter/lib/src/node.c

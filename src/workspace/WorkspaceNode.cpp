@@ -37,7 +37,7 @@ bool validSelector(const QString& path)
     if (path == ".") {
         return true;
     }
-    if (path.size() > 4096 || path.count('/') >= 64) {
+    if (path.toUtf8().size() > MAX_PATH_BYTES || path.count('/') >= 64) {
         return false;
     }
     const QStringList parts = path.split('/');

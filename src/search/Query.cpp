@@ -10,7 +10,7 @@ namespace {
 
 // The C API supplies predicate steps without source offsets. Record operator positions
 // outside strings and comments while checking bounds for the recursive query compiler.
-std::optional<QueryDiagnostic> inspectQuery(const QByteArray& source, QList<qsizetype>& operators)
+std::optional<QueryDiagnostic> inspectQuery(QStringView source, QList<qsizetype>& operators)
 {
     constexpr int MAX_NESTING = 128;
     int depth = 0;
@@ -20,10 +20,10 @@ std::optional<QueryDiagnostic> inspectQuery(const QByteArray& source, QList<qsiz
     bool comment = false;
     const qsizetype nul = source.indexOf('\0');
     if (nul >= 0) {
-        return QueryDiagnostic { nul, QStringLiteral("Unexpected NUL in query") };
+        return QueryDiagnostic { source.left(nul).toUtf8().size(), QStringLiteral("Unexpected NUL in query") };
     }
     for (qsizetype i = 0; i < source.size(); ++i) {
-        const char ch = source[i];
+        const QChar ch = source[i];
         if (comment) {
             comment = ch != '\n';
         } else if (quoted) {
@@ -34,7 +34,7 @@ std::optional<QueryDiagnostic> inspectQuery(const QByteArray& source, QList<qsiz
             }
         } else if (ch == ';') {
             comment = true;
-        } else if (ch == ' ' || (ch >= '\t' && ch <= '\r')) {
+        } else if (ch.isSpace()) {
             continue;
         } else {
             if (afterOpen && (ch == '#' || ch == '.')) {
@@ -53,7 +53,8 @@ std::optional<QueryDiagnostic> inspectQuery(const QByteArray& source, QList<qsiz
                 ++fieldPrefixes;
             }
             if (depth + fieldPrefixes > MAX_NESTING) {
-                return QueryDiagnostic { i, QStringLiteral("Query nesting and field prefix limit exceeded") };
+                return QueryDiagnostic { source.left(i).toUtf8().size(),
+                                         QStringLiteral("Query nesting and field prefix limit exceeded") };
             }
         }
     }
@@ -76,6 +77,8 @@ QString compileError(TSQueryError error)
         return QStringLiteral("Unknown field");
     case TSQueryErrorCapture:
         return QStringLiteral("Unknown capture");
+    case TSQueryErrorCaptureLimit:
+        return QStringLiteral("A query step supports at most three captures");
     case TSQueryErrorStructure:
         return QStringLiteral("Invalid pattern structure");
     case TSQueryErrorLanguage:
@@ -155,7 +158,7 @@ bool Predicate::accepts(const TSQueryMatch& match, QByteArrayView source) const
     return !otherCapture || !nextCapture(match, *otherCapture, right, source);
 }
 
-std::optional<QueryDiagnostic> CompiledQuery::compile(const TSLanguage* language, const QByteArray& source)
+std::optional<QueryDiagnostic> CompiledQuery::compile(const TSLanguage* language, const QString& source)
 {
     predicates.clear();
     query.reset();
@@ -165,7 +168,8 @@ std::optional<QueryDiagnostic> CompiledQuery::compile(const TSLanguage* language
     }
     uint32_t offset = 0;
     TSQueryError error = TSQueryErrorNone;
-    query.reset(ts_query_new(language, source.constData(), static_cast<uint32_t>(source.size()), &offset, &error));
+    const QByteArray bytes = source.toUtf8();
+    query.reset(ts_query_new(language, bytes.constData(), static_cast<uint32_t>(bytes.size()), &offset, &error));
     if (!query) {
         return QueryDiagnostic { offset, compileError(error) };
     }
@@ -183,10 +187,10 @@ std::optional<QueryDiagnostic> CompiledQuery::compile(const TSLanguage* language
             if (steps[end].type == TSQueryPredicateStepTypeDone) {
                 const QString message = readPredicate(query.get(), i, { steps + start, end - start }, predicates[i]);
                 if (!message.isEmpty()) {
-                    return QueryDiagnostic {
-                        operators.value(operatorIndex, ts_query_start_byte_for_pattern(query.get(), i)),
-                        message
-                    };
+                    const qsizetype byteOffset = operatorIndex < operators.size()
+                        ? QStringView(source).left(operators.at(operatorIndex)).toUtf8().size()
+                        : ts_query_start_byte_for_pattern(query.get(), i);
+                    return QueryDiagnostic { byteOffset, message };
                 }
                 ++operatorIndex;
                 start = end + 1;

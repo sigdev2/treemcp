@@ -118,6 +118,7 @@ are zero-based and ends are exclusive. A tree or search result with
 | Tree depth (`maxDepth`) | Default 8, range 0–64, root at 0 |
 | Tree nodes (`maxNodes`) | Default 256, range 1–2,048 |
 | Matches (`maxMatches`) | Default 100, range 1–1,000 |
+| Capture bindings on one query step | At most 3. Compilation reports the first binding that exceeds the limit. |
 | Captures and text | First 64 captures per match, first 1,024 UTF-8 bytes per capture ending on a character boundary |
 | Repeated captures | Up to 21,845 tree nodes for queries with a repeated capture, to keep Tree-sitter's 16-bit match capture count representable |
 | Cursor | 256 simultaneous in-progress matches |

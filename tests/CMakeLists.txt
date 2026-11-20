@@ -30,6 +30,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME workspace.changed-read COMMAND check-changed-read)
 endif()
 
+if(TREEMCP_ENABLE_SANITIZERS)
+    add_executable(check-session-memory CheckSessionMemory.cpp)
+    target_link_libraries(check-session-memory PRIVATE treemcp_core)
+    treemcp_set_warnings(check-session-memory)
+    add_test(NAME protocol.session-memory COMMAND check-session-memory)
+endif()
+
 set_tests_properties(${protocol_tests} PROPERTIES TIMEOUT 30)
 if(WIN32)
     get_filename_component(compiler_directory "${CMAKE_CXX_COMPILER}" DIRECTORY)
