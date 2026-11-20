@@ -50,6 +50,13 @@ A failed single-file read returns a tool error.
 
 ### Filters and limits
 
+- With `paths`, both search tools skip directories named exactly `docs`, `cmake`,
+  `build`, `CMakeFiles`, `dist`, `coverage` or `__pycache__` at any depth.
+  Matching is case-sensitive. The server skips the directory before listing its
+  contents or reading its `.gitignore`, even when a selector points inside it.
+  To replace the defaults, pass one `--ignore-dir <name>` per directory name at
+  startup, for example `structural-mcp --ignore-dir generated --ignore-dir vendor`.
+  Single-file `path` requests can still open files inside these directories.
 - `include` selects files. `exclude` can prune files or directories. Both take
   up to 64 case-sensitive globs of 512 UTF-8 bytes each and require `paths`.
   Up to 64 path selectors are accepted.

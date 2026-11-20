@@ -181,6 +181,38 @@ def check_filters(call, root, outside):
     assert partial["incomplete"] and partial["diagnostics"] and len(partial["matches"]) == 1
 
 
+def check_search_exclusions(executable, root):
+    defaults = ["docs", "src/cmake", "build", "src/deep/CMakeFiles", "dist", "src/coverage", "src/__pycache__"]
+    custom = ["generated", "src/deep/cache.py"]
+    always_visible = ["build_tools/example.py", "src/Docs/example.py", "src/generated_tools/example.py", "cache.py"]
+    for directory in defaults + custom:
+        write(root, directory + "/example.py", "found")
+    for path in always_visible + [".hidden/example.py", "src/.hidden.py", "src/ignored.py", "src/request.py"]:
+        write(root, path, "found")
+    write(root, "src/.gitignore", "/ignored.py\n")
+
+    query = {"id": "names", "language": "python", "query": "(identifier) @name"}
+    for options, skipped, visible in [
+        ([], defaults, custom),
+        (["--ignore-dir", "generated", "--ignore-dir", "cache.py"], custom, defaults),
+    ]:
+        # Entering this subtree would read the invalid ignore file and mark the search incomplete.
+        invalid = write(root, skipped[-1] + "/.gitignore", b"\xff")
+        with session(executable, root, *options) as call:
+            expected = sorted(always_visible + [directory + "/example.py" for directory in visible])
+            for paths, wanted in [(["."], expected), ([skipped[0], skipped[-1] + "/example.py"], [])]:
+                scope = {"paths": paths, "exclude": ["request.py"]}
+                single = call(**scope)
+                batch = call("batch_search", queries=[query], **scope)
+                assert not single["incomplete"] and not batch["incomplete"], (single, batch)
+                for result in [single, batch["items"][0]]:
+                    assert [path for path, _ in captures(result)] == wanted, result
+                assert batch["stats"]["filesVisited"] == len(wanted), batch
+            path = skipped[0] + "/example.py"
+            assert captures(call(path=path)) == [(path, "found")]
+        invalid.unlink()
+
+
 def check_directory_swap(call, root, outside):
     # Rename either an ordinary directory or an outside link into the same slot.
     live = root / "race"
@@ -225,6 +257,7 @@ def check_directory_swap(call, root, outside):
 def main():
     executable = str(Path(sys.argv[1]).resolve())
     with tempfile.TemporaryDirectory() as temp:
+        check_search_exclusions(executable, Path(temp) / "exclusions")
         root = Path(temp) / "workspace"
         root.mkdir()
         outside = root.parent / "outside"

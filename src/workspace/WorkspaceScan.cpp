@@ -34,10 +34,12 @@ bool compileGlobs(const QStringList& patterns, QList<WorkspaceGlob>& output)
 class Scan {
 public:
     Scan(
+        const Workspace& searchWorkspace,
         const FileScope& selection,
         const SourceVisitor& onSource,
         const ScanDiagnostic& onError,
         const ScanOptions& limits) :
+            workspace(searchWorkspace),
             scope(selection),
             visit(onSource),
             report(onError),
@@ -45,7 +47,7 @@ public:
     {
     }
 
-    QString run(const WorkspaceNode& root)
+    QString run()
     {
         Selection selection;
         for (const auto& path : scope.paths) {
@@ -64,12 +66,13 @@ public:
             return QStringLiteral("Invalid workspace glob");
         }
         if (!options.stop || !options.stop()) {
-            walk(root, {}, selection, {});
+            walk(workspace.root, {}, selection, {});
         }
         return {};
     }
 
 private:
+    const Workspace& workspace;
     const FileScope& scope;
     const SourceVisitor& visit;
     const ScanDiagnostic& report;
@@ -89,7 +92,7 @@ private:
             return;
         }
         QSet<QString> found;
-        const bool listed = directory.list([&](const QString& name, bool regularFile) {
+        const bool listed = directory.list([&](const QString& name, NodeKind kind) {
             if (options.stop && options.stop()) {
                 stopped = true;
                 return false;
@@ -111,7 +114,7 @@ private:
                 const Selection& child = selection.all ? ALL : explicitChild->second;
                 QStringList parts = prefix;
                 parts.append(name);
-                process(directory, parts, child, rules, regularFile);
+                process(directory, parts, child, rules, kind);
             }
             return !stopped && (selection.all || static_cast<size_t>(found.size()) < selection.children.size());
         });
@@ -133,9 +136,13 @@ private:
         const QStringList& parts,
         const Selection& selection,
         const IgnoreRules& rules,
-        bool regularFile)
+        NodeKind kind)
     {
         const QString& name = parts.back();
+        const bool ignoreDirectory = !scope.singleFile && workspace.ignoredDirectories.contains(name);
+        if (kind == NodeKind::Directory && ignoreDirectory) {
+            return;
+        }
         const QString path = parts.join('/');
         if (parts.size() > 64 || path.toUtf8().size() > MAX_PATH_BYTES) {
             report(path, QStringLiteral("Workspace path limit exceeded"));
@@ -143,7 +150,7 @@ private:
         }
         const auto excluded = [&](bool dir) { return matches(exclude, parts, dir) || rules.excludes(parts, dir); };
         const bool excludeFile = excluded(false);
-        const bool excludeDirectory = excluded(true);
+        const bool excludeDirectory = ignoreDirectory || excluded(true);
         if (excludeFile && excludeDirectory) {
             return;
         }
@@ -154,7 +161,7 @@ private:
                      return name.endsWith(suffix);
                  }));
         };
-        if (regularFile && selection.all && !eligibleFile()) {
+        if (kind == NodeKind::File && selection.all && !eligibleFile()) {
             return;
         }
         const auto node = parent.child(name);
@@ -171,7 +178,7 @@ private:
             report(path, QStringLiteral("Cannot open selected workspace entry"));
             return;
         }
-        if (!regularFile && !eligibleFile()) {
+        if (kind != NodeKind::File && !eligibleFile()) {
             return;
         }
         if (files == options.maxFiles) {
@@ -198,21 +205,21 @@ private:
 } // namespace
 
 QString scanWorkspace(
-    const WorkspaceNode& root,
+    const Workspace& workspace,
     const FileScope& scope,
     const SourceVisitor& visit,
     const ScanDiagnostic& report,
     const ScanOptions& options)
 {
-    return Scan(scope, visit, report, options).run(root);
+    return Scan(workspace, scope, visit, report, options).run();
 }
 
-SourceRead readWorkspaceFile(const WorkspaceNode& root, const QString& path)
+SourceRead readWorkspaceFile(const Workspace& workspace, const QString& path)
 {
     SourceRead result = QStringLiteral("Expected an eligible regular UTF-8 workspace file");
     const FileScope scope { { path }, {}, {}, {}, true };
     const QString error = scanWorkspace(
-        root,
+        workspace,
         scope,
         [&](const QString&, const QByteArray& bytes) {
             result = bytes;

@@ -319,7 +319,7 @@ QString validateBatch(const QJsonObject& arguments)
 SingleFile::Result batchSearch(
     const QJsonValue& id,
     const QJsonObject& arguments,
-    const WorkspaceNode& workspace,
+    const Workspace& workspace,
     const BatchControl& control)
 {
     const auto queries = arguments.value("queries").toArray();

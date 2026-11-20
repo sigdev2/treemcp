@@ -79,9 +79,9 @@ std::optional<QJsonObject> Session::dispatch(const JsonRpc::Request& request)
     }
     if (request.method == "tools/call") {
         const auto received = std::chrono::steady_clock::now();
-        return Tools::call(id, params, root, [&](const QJsonObject& arguments) -> std::optional<QJsonObject> {
+        return Tools::call(id, params, workspace, [&](const QJsonObject& arguments) -> std::optional<QJsonObject> {
             if (!publish) {
-                return Tools::batchReply(id, arguments, root, { cancelled, workerCount, received });
+                return Tools::batchReply(id, arguments, workspace, { cancelled, workerCount, received });
             }
             if (worker.joinable()) {
                 return JsonRpc::error(id, -32001, QStringLiteral("Batch search already active"));
@@ -89,7 +89,7 @@ std::optional<QJsonObject> Session::dispatch(const JsonRpc::Request& request)
             batchId = id;
             cancelled.store(false);
             worker = std::thread([this, id, arguments, received]() {
-                const auto reply = Tools::batchReply(id, arguments, root, { cancelled, workerCount, received });
+                const auto reply = Tools::batchReply(id, arguments, workspace, { cancelled, workerCount, received });
                 QMetaObject::invokeMethod(
                     this,
                     [this, reply]() {

@@ -45,14 +45,14 @@ Version 0.1.0 is the bootstrap; 1.0.0 requires all release gates below.
 
 ### Configurable search exclusions
 
-- [ ] Extend recursive traversal in `structural_search` and `batch_search` to skip
+- [x] Extend recursive traversal in `structural_search` and `batch_search` to skip
   directories with these exact names at any depth by default: `docs`, `cmake`,
   `build`, `CMakeFiles`, `dist`, `coverage` and `__pycache__`.
   Skip each directory before enumerating its contents.
-- [ ] Add a repeatable server argument `--ignore-dir <name>`. When supplied, its
+- [x] Add a repeatable server argument `--ignore-dir <name>`. When supplied, its
   values replace the default directory list. Keep per-request `exclude` globs
   available for additional exclusions.
-- [ ] Test both searches with default and custom lists, including nested directories
+- [x] Test both searches with default and custom lists, including nested directories
   and similarly named siblings such as `build_tools`. Verify that dot-prefixed files
   and directories stay excluded with either list and that nested `.gitignore` rules
   still apply in visited directories.

@@ -14,14 +14,14 @@
 
 namespace treemcp {
 
-class WorkspaceNode;
+struct Workspace;
 
 /** @brief Owns the handshake and request ID history of one stdio connection on the main thread. */
 class Session : public QObject {
 public:
     using ReplyWriter = std::function<void(const QJsonObject&)>;
-    explicit Session(const WorkspaceNode& workspace, int workers = 1, ReplyWriter writer = {}) :
-            root(workspace),
+    explicit Session(const Workspace& searchWorkspace, int workers = 1, ReplyWriter writer = {}) :
+            workspace(searchWorkspace),
             workerCount(workers),
             publish(std::move(writer))
     {
@@ -40,7 +40,7 @@ private:
     std::optional<QJsonObject> dispatch(const JsonRpc::Request& request);
     QJsonObject initialize(const QJsonValue& id, const QJsonObject& params);
 
-    const WorkspaceNode& root;
+    const Workspace& workspace;
     const int workerCount;
     ReplyWriter publish;
     QJsonValue batchId = QJsonValue::Undefined;

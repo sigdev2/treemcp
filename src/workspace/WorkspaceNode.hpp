@@ -33,8 +33,8 @@ class WorkspaceNode {
 public:
     static WorkspaceNode openRoot(const QString& path);
     WorkspaceNode child(const QString& component) const;
-    // The regular-file hint is for filtering. Always validate the opened handle before reading.
-    using EntryVisitor = std::function<bool(const QString& name, bool regularFile)>;
+    // Entry kinds are hints for filtering. Always validate opened handles before use.
+    using EntryVisitor = std::function<bool(const QString& name, NodeKind kind)>;
     bool list(const EntryVisitor& visit) const;
     ~WorkspaceNode();
     WorkspaceNode(WorkspaceNode&& other) noexcept;

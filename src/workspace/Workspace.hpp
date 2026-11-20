@@ -2,10 +2,16 @@
 #define TREEMCP_WORKSPACE_HPP
 
 #include "WorkspaceNode.hpp"
+#include <QSet>
 #include <QStringList>
 #include <variant>
 
 namespace treemcp {
+
+struct Workspace {
+    WorkspaceNode root;
+    QSet<QString> ignoredDirectories;
+};
 
 struct BinaryFile {};
 using SourceRead = std::variant<QByteArray, QString, BinaryFile>;
@@ -15,7 +21,7 @@ SourceRead readText(
     const WorkspaceNode& opened,
     qsizetype limit,
     const std::function<bool()>& stop = {});
-SourceRead readWorkspaceFile(const WorkspaceNode& root, const QString& path);
+SourceRead readWorkspaceFile(const Workspace& workspace, const QString& path);
 struct FileScope {
     QStringList paths;
     QStringList include;
@@ -34,7 +40,7 @@ struct ScanOptions {
 using SourceVisitor = std::function<bool(const QString&, const QByteArray&)>;
 using ScanDiagnostic = std::function<void(const QString&, const QString&)>;
 QString scanWorkspace(
-    const WorkspaceNode& root,
+    const Workspace& workspace,
     const FileScope& scope,
     const SourceVisitor& visit,
     const ScanDiagnostic& report,

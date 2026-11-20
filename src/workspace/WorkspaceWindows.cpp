@@ -152,10 +152,12 @@ bool WorkspaceNode::list(const EntryVisitor& visit) const
             const auto* entry = static_cast<const FILE_ID_BOTH_DIR_INFO*>(address);
             const auto length = static_cast<qsizetype>(entry->FileNameLength / sizeof(WCHAR));
             const QString name = QStringView(entry->FileName, length).toString();
-            const bool regularFile =
-                !(entry->FileAttributes &
-                  (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_DEVICE));
-            if (!visit(name, regularFile)) {
+            const auto attributes = entry->FileAttributes;
+            const NodeKind kind = (attributes & (FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_DEVICE))
+                ? NodeKind::Excluded
+                : (attributes & FILE_ATTRIBUTE_DIRECTORY) ? NodeKind::Directory
+                                                          : NodeKind::File;
+            if (!visit(name, kind)) {
                 return true;
             }
             if (!entry->NextEntryOffset) {

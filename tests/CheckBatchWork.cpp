@@ -1,6 +1,6 @@
 #include "BatchSearch.hpp"
 #include "Tools.hpp"
-#include "WorkspaceNode.hpp"
+#include "Workspace.hpp"
 
 #include <QFile>
 #include <QJsonArray>
@@ -59,7 +59,7 @@ int main()
             return 1;
         }
     }
-    const auto root = treemcp::WorkspaceNode::openRoot(directory.path());
+    const treemcp::Workspace workspace { treemcp::WorkspaceNode::openRoot(directory.path()), {} };
     QJsonArray queries;
     for (int i = 0; i < 16; ++i) {
         queries.append(QJsonObject { { "id", QString::number(i) },
@@ -72,12 +72,12 @@ int main()
         return treemcp::Tools::call(
                    1,
                    { { "name", "batch_search" }, { "arguments", args } },
-                   root,
+                   workspace,
                    [&](const QJsonObject& admitted) {
                        return treemcp::Tools::batchReply(
                            1,
                            admitted,
-                           root,
+                           workspace,
                            { cancelled, 4, std::chrono::steady_clock::now() });
                    })
             ->value("result")

@@ -165,10 +165,10 @@ QJsonObject list(const QJsonValue& id, const QJsonObject& params)
 QJsonObject batchReply(
     const QJsonValue& id,
     const QJsonObject& arguments,
-    const WorkspaceNode& root,
+    const Workspace& workspace,
     const BatchControl& control)
 {
-    const auto result = batchSearch(id, arguments, root, control);
+    const auto result = batchSearch(id, arguments, workspace, control);
     if (const auto* failure = std::get_if<QString>(&result)) {
         return toolError(id, *failure);
     }
@@ -176,7 +176,7 @@ QJsonObject batchReply(
 }
 
 std::optional<QJsonObject>
-    call(const QJsonValue& id, const QJsonObject& params, const WorkspaceNode& root, const BatchRunner& runBatch)
+    call(const QJsonValue& id, const QJsonObject& params, const Workspace& workspace, const BatchRunner& runBatch)
 {
     const QJsonValue name = params.value("name");
     const QJsonValue arguments = params.value("arguments");
@@ -204,7 +204,7 @@ std::optional<QJsonObject>
             return runBatch(args);
         }
         const SingleFile::Result result =
-            name == "languages" ? languageList() : SingleFile::run(name.toString(), args, root);
+            name == "languages" ? languageList() : SingleFile::run(name.toString(), args, workspace);
         if (const auto* failure = std::get_if<QString>(&result)) {
             return toolError(id, *failure);
         }

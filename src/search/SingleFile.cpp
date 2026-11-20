@@ -132,7 +132,7 @@ QStringList strings(const QJsonValue& value)
 }
 
 Result searchScope(
-    const WorkspaceNode& workspace,
+    const Workspace& workspace,
     const LanguageDefinition& grammar,
     const CompiledQuery& compiled,
     const QJsonObject& arguments)
@@ -174,7 +174,7 @@ Result searchScope(
 
 } // namespace
 
-Result run(const QString& name, const QJsonObject& arguments, const WorkspaceNode& workspace)
+Result run(const QString& name, const QJsonObject& arguments, const Workspace& workspace)
 {
     const auto* grammar = LanguageRegistry::getLanguage(arguments.value("language").toString());
     if (!grammar) {

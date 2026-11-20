@@ -52,7 +52,7 @@ bool writeReply(const QJsonObject& reply)
 
 } // namespace
 
-int run(QCoreApplication& application, const WorkspaceNode& root, int batchWorkers)
+int run(QCoreApplication& application, const Workspace& workspace, int batchWorkers)
 {
 #ifdef Q_OS_WIN
     if (_setmode(_fileno(stdout), _O_BINARY) < 0) {
@@ -63,7 +63,7 @@ int run(QCoreApplication& application, const WorkspaceNode& root, int batchWorke
     std::signal(SIGPIPE, SIG_IGN);
 #endif
     bool outputOk = true;
-    Session session(root, batchWorkers, [&](const QJsonObject& reply) { outputOk = writeReply(reply); });
+    Session session(workspace, batchWorkers, [&](const QJsonObject& reply) { outputOk = writeReply(reply); });
     Framer framer;
     const Framer::Receiver receive = [&session, &outputOk](QByteArrayView frame) {
         const auto reply = session.handle(frame);

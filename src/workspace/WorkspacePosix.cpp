@@ -76,12 +76,17 @@ bool WorkspaceNode::list(const EntryVisitor& visit) const
             QStringDecoder::Utf8,
             QStringDecoder::Flag::ConvertInitialBom | QStringDecoder::Flag::Stateless);
         const QString decoded = decoder.decode(name);
-        bool regularFile = entry->d_type == DT_REG;
-        if (entry->d_type == DT_UNKNOWN) {
+        unsigned int type = entry->d_type;
+        if (type == DT_UNKNOWN) {
             struct stat info {};
-            regularFile = fstatat(fd, entry->d_name, &info, AT_SYMLINK_NOFOLLOW) == 0 && S_ISREG(info.st_mode);
+            if (fstatat(fd, entry->d_name, &info, AT_SYMLINK_NOFOLLOW) == 0) {
+                type = IFTODT(info.st_mode);
+            }
         }
-        if (!visit(decoder.hasError() ? QString() : decoded, regularFile)) {
+        const NodeKind kind = type == DT_DIR ? NodeKind::Directory
+            : type == DT_REG                 ? NodeKind::File
+                                             : NodeKind::Excluded;
+        if (!visit(decoder.hasError() ? QString() : decoded, kind)) {
             return true;
         }
     }

@@ -1,5 +1,5 @@
 #include "Session.hpp"
-#include "WorkspaceNode.hpp"
+#include "Workspace.hpp"
 
 #include <QDebug>
 #include <QJsonDocument>
@@ -11,8 +11,8 @@ extern "C" std::size_t __sanitizer_get_current_allocated_bytes();
 
 int main()
 {
-    const auto root = treemcp::WorkspaceNode::openRoot(QStringLiteral("."));
-    treemcp::Session session(root);
+    const treemcp::Workspace workspace { treemcp::WorkspaceNode::openRoot(QStringLiteral(".")), {} };
+    treemcp::Session session(workspace);
     constexpr int PAYLOAD_BYTES = 64 * 1024;
     const QJsonObject params { { "payload", QString(PAYLOAD_BYTES, 'x') } };
     const auto ping = [&](const QString& id) {

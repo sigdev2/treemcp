@@ -2,7 +2,7 @@
 
 #include "SelfCheck.hpp"
 #include "StdioServer.hpp"
-#include "WorkspaceNode.hpp"
+#include "Workspace.hpp"
 
 #include <QCommandLineParser>
 #include <QCoreApplication>
@@ -34,6 +34,14 @@ int main(int argc, char* argv[])
         QStringLiteral("directory"),
         QStringLiteral("."));
     arguments.addOption(workspaceOption);
+    const QStringList defaultIgnored { "docs", "cmake", "build", "CMakeFiles", "dist", "coverage", "__pycache__" };
+    QCommandLineOption ignoreDirOption(
+        QStringLiteral("ignore-dir"),
+        QStringLiteral("Skip this exact directory name in recursive searches. Repeatable. Replaces the defaults (%1).")
+            .arg(defaultIgnored.join(QStringLiteral(", "))),
+        QStringLiteral("name"));
+    ignoreDirOption.setDefaultValues(defaultIgnored);
+    arguments.addOption(ignoreDirOption);
     const int defaultWorkers = std::clamp(QThread::idealThreadCount(), 1, 8);
     const QCommandLineOption workersOption(
         QStringLiteral("batch-workers"),
@@ -65,13 +73,19 @@ int main(int argc, char* argv[])
         diagnostics << "Expected --batch-workers between 1 and 8.\n";
         return 2;
     }
+    const QStringList ignoredDirectories = arguments.values(ignoreDirOption);
+    if (!std::all_of(ignoredDirectories.begin(), ignoredDirectories.end(), treemcp::validComponent)) {
+        diagnostics << "Expected a single directory name for --ignore-dir.\n";
+        return 2;
+    }
     if (!arguments.isSet(selfCheckOption)) {
-        const auto root = treemcp::WorkspaceNode::openRoot(arguments.value(workspaceOption));
-        if (root.kind() != treemcp::NodeKind::Directory) {
+        const treemcp::Workspace workspace { treemcp::WorkspaceNode::openRoot(arguments.value(workspaceOption)),
+                                             { ignoredDirectories.begin(), ignoredDirectories.end() } };
+        if (workspace.root.kind() != treemcp::NodeKind::Directory) {
             diagnostics << "Cannot open workspace root directory.\n";
             return 2;
         }
-        return treemcp::StdioServer::run(application, root, batchWorkers);
+        return treemcp::StdioServer::run(application, workspace, batchWorkers);
     }
 
     QTimer::singleShot(0, &application, []() {

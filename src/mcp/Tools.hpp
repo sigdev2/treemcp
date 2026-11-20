@@ -6,7 +6,7 @@
 #include <QJsonObject>
 
 namespace treemcp {
-class WorkspaceNode;
+struct Workspace;
 struct BatchControl;
 } // namespace treemcp
 
@@ -18,10 +18,10 @@ using BatchRunner = std::function<std::optional<QJsonObject>(const QJsonObject&)
 QJsonObject batchReply(
     const QJsonValue& id,
     const QJsonObject& arguments,
-    const WorkspaceNode& root,
+    const Workspace& workspace,
     const BatchControl& control);
 std::optional<QJsonObject>
-    call(const QJsonValue& id, const QJsonObject& params, const WorkspaceNode& root, const BatchRunner& runBatch);
+    call(const QJsonValue& id, const QJsonObject& params, const Workspace& workspace, const BatchRunner& runBatch);
 
 } // namespace treemcp::Tools
 
