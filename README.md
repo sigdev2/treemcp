@@ -11,7 +11,8 @@ Run `structural-mcp --workspace-root <directory>` to serve that workspace over M
 With no arguments the server binds its starting directory. The
 `languages` tool lists the compiled C++ and Python grammars. Use `query_validate`
 to check a Tree-sitter query, `syntax_tree` to inspect a snippet and `structural_search`
-to find captures in inline source, a file or a filtered directory tree. [Tool examples and limits](docs/reference/tools.md)
+to find captures in inline source, a file or a filtered directory tree. Use `batch_search` to run several
+queries over the same files in one pass. [Tool examples and limits](docs/reference/tools.md)
 
 - [Documentation](docs/README.md) and [build instructions](docs/getting-started/README.md)
 - [Roadmap and TODO](ROADMAP.md)

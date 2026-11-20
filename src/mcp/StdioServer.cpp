@@ -52,7 +52,7 @@ bool writeReply(const QJsonObject& reply)
 
 } // namespace
 
-int run(QCoreApplication& application, const WorkspaceNode& root)
+int run(QCoreApplication& application, const WorkspaceNode& root, int batchWorkers)
 {
 #ifdef Q_OS_WIN
     if (_setmode(_fileno(stdout), _O_BINARY) < 0) {
@@ -62,15 +62,16 @@ int run(QCoreApplication& application, const WorkspaceNode& root)
 #else
     std::signal(SIGPIPE, SIG_IGN);
 #endif
-    Session session(root);
+    bool outputOk = true;
+    Session session(root, batchWorkers, [&](const QJsonObject& reply) { outputOk = writeReply(reply); });
     Framer framer;
-    const Framer::Receiver receive = [&session](QByteArrayView frame) {
+    const Framer::Receiver receive = [&session, &outputOk](QByteArrayView frame) {
         const auto reply = session.handle(frame);
-        return !reply || writeReply(*reply);
+        return outputOk && (!reply || writeReply(*reply));
     };
     // A blocking handoff keeps the event loop responsive while stdin is idle and bounds the queue
     // to one chunk. The reader owns the buffer until the main thread finishes consuming it.
-    std::thread reader([&application, &framer, &receive]() {
+    std::thread reader([&application, &framer, &receive, &session, &outputOk]() {
         Buffer buffer;
         bool ok = true;
         qsizetype count;
@@ -82,18 +83,24 @@ int run(QCoreApplication& application, const WorkspaceNode& root)
             }
             QMetaObject::invokeMethod(
                 &application,
-                [&buffer, count, &framer, &receive, &ok]() {
-                    ok = count == 0 ? framer.finish(receive) : framer.feed({ buffer.data(), count }, receive);
+                [&buffer, count, &framer, &receive, &ok, &session]() {
+                    if (count == 0) {
+                        session.stopBatch();
+                        ok = framer.finish(receive);
+                    } else {
+                        ok = framer.feed({ buffer.data(), count }, receive);
+                    }
                 },
                 Qt::BlockingQueuedConnection);
         } while (ok && count > 0);
         QMetaObject::invokeMethod(
             &application,
-            [ok]() {
-                if (!ok) {
+            [ok, &session, &outputOk]() {
+                session.stopBatch();
+                if (!ok || !outputOk) {
                     std::fputs("MCP stdio operation failed.\n", stderr);
                 }
-                QCoreApplication::exit(ok ? 0 : 1);
+                QCoreApplication::exit(ok && outputOk ? 0 : 1);
             },
             Qt::QueuedConnection);
     });

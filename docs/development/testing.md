@@ -47,6 +47,31 @@ a hardware/software manifest. Compare sequential searches, concurrent searches a
 one batch using equivalent queries and limits. Report OS cache conditions separately
 from process warmup; no application content cache is allowed.
 
+## Batch search verification
+
+On 2026-11-20, CTest passed 8/8 on Windows/MinGW Debug and Release, 10/10 on
+Linux/WSL Debug and Release, and 11/11 on Linux/WSL with ASan/UBSan. The Windows
+Release server passed discovery, schema validation and tool calls for all five
+tools with MCP Python SDK 1.26.0.
+
+- `batch.correctness` checks schema budgets, item-local errors, filters, duplicate
+  paths, deterministic top-K at 1, 2, 4 and 8 workers, byte limits on the wire,
+  deadlines, cancellation, EOF, overload and a concurrent small search. Repeated
+  requests observe edits and deletions. The Linux fixture also removes write
+  permission on the workspace and the server's working directory.
+- `batch.corpus` compares the full matches with independent single searches for
+  16 queries over 1,000 files and two over 10,000 files. The corpus has a known
+  distinct capture for every query.
+- On Linux, `batch.shared-work` interposes native reads, Tree-sitter parses and
+  tree deletion. It verifies three reads and three parses for 16 queries over
+  three files, fresh work on the next call, zero live trees on return, and zero
+  additional reads or parses for invalid selectors and duplicate item IDs.
+
+A Linux/WSL `strace -f -yy` run followed two 16-query batches in a read-only
+workspace and working directory. The server wrote to protocol stdout and
+anonymous event descriptors used for thread notifications. The trace showed
+one program image, thread creation, and no writable file opens or sockets.
+
 ## Workspace verification
 
 On 2026-11-19, all six CTest checks passed in Windows/MinGW Debug and Release.

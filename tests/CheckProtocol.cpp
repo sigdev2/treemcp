@@ -106,7 +106,7 @@ void checkRecovery(QProcess& server)
     expectError(server, "method", -32600);
     server.write(message("cursor", "tools/list", QJsonObject { { "cursor", "invalid" } }));
     expectError(server, "cursor", -32602);
-    server.write(message("unknown", "tools/call", QJsonObject { { "name", "batch_search" } }));
+    server.write(message("unknown", "tools/call", QJsonObject { { "name", "unknown_tool" } }));
     expectError(server, "unknown", -32602);
     server.write(
         message("args", "tools/call", QJsonObject { { "name", "languages" }, { "arguments", QJsonArray {} } }));
@@ -124,7 +124,7 @@ void checkRecovery(QProcess& server)
 void checkTools(QProcess& server, const QString& schemaPath)
 {
     QJsonArray descriptors;
-    for (const auto* name : { "languages", "query_validate", "syntax_tree", "structural_search" }) {
+    for (const auto* name : { "languages", "query_validate", "syntax_tree", "structural_search", "batch_search" }) {
         QFile file(schemaPath + '/' + QString::fromLatin1(name) + QStringLiteral(".json"));
         require(file.open(QIODevice::ReadOnly), "Cannot open expected tool descriptor");
         const QJsonObject descriptor = QJsonDocument::fromJson(file.readAll()).object();

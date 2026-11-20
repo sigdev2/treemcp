@@ -34,6 +34,10 @@ async def check(executable: Path, workspace: Path) -> None:
                     {"language": "python", "path": "example.py", "query": query},
                     {"language": "python", "paths": ["."], "include": ["*.py"], "query": query},
                 ],
+                "batch_search": [{"paths": ["."], "queries": [
+                    {"id": "functions", "language": "python", "query": query},
+                    {"id": "invalid", "language": "python", "query": "(unknown_node)"},
+                ]}],
             }
             assert [tool.name for tool in catalog.tools] == list(examples)
             for tool in catalog.tools:

@@ -1,8 +1,9 @@
 # Request lifecycle
 
-Search runs synchronously on inline source or workspace files. Each request owns
-its traversal, file buffers, trees, compiled query and results. Worker scheduling,
-cancellation and deadlines below describe the planned concurrency milestone.
+Single searches execute synchronously. A batch owns a coordinator, bounded file
+workers, a deadline and cancellation state. [Batch execution](batch.md)
+describes its admission, cleanup and response handling. The general scheduler
+for concurrent single searches remains a later milestone.
 
 Each search request validates its arguments and resource budget, determines the
 current file set, securely opens and reads eligible files, builds fresh trees,

@@ -8,7 +8,7 @@
 | `src/app/` | In-memory dependency self-check |
 | `src/languages/` | Immutable compiled language metadata |
 | `src/mcp/` | Bounded stdio transport, JSON-RPC decoder, session and tools |
-| `src/search/` | Single-file parsing, tree inspection, query compilation and predicate evaluation |
+| `src/search/` | Parsing, tree inspection, predicates and bounded single and batch search |
 | `src/workspace/` | Handle-relative reads, directory traversal and filters |
 | `schemas/` | Tool descriptors embedded in the executable |
 | `tests/` | Runtime, CLI, decoder, stdio and client compatibility checks |

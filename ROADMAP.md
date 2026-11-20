@@ -45,13 +45,13 @@ Version 0.1.0 is the bootstrap; 1.0.0 requires all release gates below.
 
 ## 4. Batch search (required for MVP)
 
-- [ ] Implement batch_search with unique IDs, explicit item languages and shared file scope.
-- [ ] Share each file read and each file/grammar parse only within one request.
-- [ ] Keep invalid grammar/query/predicate errors local to their items.
-- [ ] Apply total query bytes, file count, result, response and deadline budgets before admission.
-- [ ] Aggregate bounded deterministic top-K results; preserve input item order.
-- [ ] Distinguish truncated results, incomplete execution and true empty matches.
-- [ ] Pass the batch correctness, resource-limit and cancellation checks before declaring the API ready.[^batch-checks]
+- [x] Implement batch_search with unique IDs, explicit item languages and shared file scope.
+- [x] Share each file read and each file/grammar parse only within one request.
+- [x] Keep invalid grammar/query/predicate errors local to their items.
+- [x] Apply total query bytes, file count, result, response and deadline budgets before admission.
+- [x] Aggregate bounded deterministic top-K results; preserve input item order.
+- [x] Distinguish truncated results, incomplete execution and true empty matches.
+- [x] Pass the batch correctness, resource-limit and cancellation checks before declaring the API ready.[^batch-checks]
 
 ## 5. Concurrency, cancellation and deadlines
 

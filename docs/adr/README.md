@@ -18,10 +18,10 @@ choices still require a compatibility or contract decision.
 | [No subprocess, network or persistent runtime writes](../internals/security.md) | Adopted constraint |
 | [Vendored dependencies and exact revisions](vendored-dependencies.md) | Accepted |
 | [Search without stored pagination snapshots](../reference/tools.md) | Planned |
-| [Deterministic ordering and bounded result selection](../internals/batch.md) | Planned |
-| [Explicit predicate support](../reference/tools.md) | Implemented for single-file search |
+| [Deterministic ordering and bounded result selection](../internals/batch.md) | Implemented for batches |
+| [Explicit predicate support](../reference/tools.md) | Implemented for single and batch search |
 | [Coherent file reads and cancellation lifecycle](../internals/lifecycle.md) | Planned |
 | [MCP protocol compatibility policy](protocol-compatibility.md) | Accepted |
-| [Request-local batch sharing and aggregation](../internals/batch.md) | Planned |
-| [Batch admission, fairness and shared budgets](../internals/batch.md) | Planned |
+| [Request-local batch sharing and aggregation](../internals/batch.md) | Implemented for batches |
+| [Batch admission, fairness and shared budgets](../internals/batch.md) | Implemented for batches |
 | [Versioned OpenCode integration](../integrations/opencode-v2.md) | Open |

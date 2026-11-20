@@ -19,10 +19,25 @@ find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
     add_test(NAME workspace.stdio COMMAND "${Python3_EXECUTABLE}"
         "${CMAKE_CURRENT_SOURCE_DIR}/check_workspace.py" "$<TARGET_FILE:structural-mcp>")
-    list(APPEND protocol_tests workspace.stdio)
+    foreach(suite correctness corpus)
+        add_test(NAME batch.${suite} COMMAND "${Python3_EXECUTABLE}"
+            -B "${CMAKE_CURRENT_SOURCE_DIR}/check_batch.py" "$<TARGET_FILE:structural-mcp>" "${suite}")
+    endforeach()
+    list(APPEND protocol_tests workspace.stdio batch.correctness batch.corpus)
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_executable(check-batch-work CheckBatchWork.cpp)
+    set(batch_descriptors ${tool_descriptors})
+    list(TRANSFORM batch_descriptors PREPEND "${PROJECT_SOURCE_DIR}/")
+    qt_add_resources(check-batch-work "batch_catalog" PREFIX "/" BASE "${PROJECT_SOURCE_DIR}"
+        FILES ${batch_descriptors})
+    target_link_libraries(check-batch-work PRIVATE treemcp_core)
+    target_link_options(check-batch-work PRIVATE "LINKER:--wrap=read"
+        "LINKER:--wrap=ts_parser_parse_with_options" "LINKER:--wrap=ts_tree_delete")
+    treemcp_set_warnings(check-batch-work)
+    add_test(NAME batch.shared-work COMMAND check-batch-work)
+
     add_executable(check-changed-read CheckChangedRead.cpp)
     target_link_libraries(check-changed-read PRIVATE treemcp_core)
     target_link_options(check-changed-read PRIVATE "LINKER:--wrap=read")
@@ -38,6 +53,9 @@ if(TREEMCP_ENABLE_SANITIZERS)
 endif()
 
 set_tests_properties(${protocol_tests} PROPERTIES TIMEOUT 30)
+if(Python3_Interpreter_FOUND)
+    set_tests_properties(batch.corpus PROPERTIES TIMEOUT 600)
+endif()
 if(WIN32)
     get_filename_component(compiler_directory "${CMAKE_CXX_COMPILER}" DIRECTORY)
     set_tests_properties(${protocol_tests} PROPERTIES ENVIRONMENT_MODIFICATION

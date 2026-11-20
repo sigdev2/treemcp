@@ -7,7 +7,10 @@
 #include <QCommandLineParser>
 #include <QCoreApplication>
 #include <QTextStream>
+#include <QThread>
 #include <QTimer>
+
+#include <algorithm>
 
 #include <cstdio>
 
@@ -31,6 +34,13 @@ int main(int argc, char* argv[])
         QStringLiteral("directory"),
         QStringLiteral("."));
     arguments.addOption(workspaceOption);
+    const int defaultWorkers = std::clamp(QThread::idealThreadCount(), 1, 8);
+    const QCommandLineOption workersOption(
+        QStringLiteral("batch-workers"),
+        QStringLiteral("Number of file workers per batch (1 to 8, default %1).").arg(defaultWorkers),
+        QStringLiteral("count"),
+        QString::number(defaultWorkers));
+    arguments.addOption(workersOption);
 
     QTextStream diagnostics(stderr);
     if (!arguments.parse(application.arguments())) {
@@ -49,13 +59,19 @@ int main(int argc, char* argv[])
         diagnostics << "Unexpected positional argument. Use --help.\n";
         return 2;
     }
+    bool validWorkers = false;
+    const int batchWorkers = arguments.value(workersOption).toInt(&validWorkers);
+    if (!validWorkers || batchWorkers < 1 || batchWorkers > 8) {
+        diagnostics << "Expected --batch-workers between 1 and 8.\n";
+        return 2;
+    }
     if (!arguments.isSet(selfCheckOption)) {
         const auto root = treemcp::WorkspaceNode::openRoot(arguments.value(workspaceOption));
         if (root.kind() != treemcp::NodeKind::Directory) {
             diagnostics << "Cannot open workspace root directory.\n";
             return 2;
         }
-        return treemcp::StdioServer::run(application, root);
+        return treemcp::StdioServer::run(application, root, batchWorkers);
     }
 
     QTimer::singleShot(0, &application, []() {

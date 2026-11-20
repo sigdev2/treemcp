@@ -12,15 +12,15 @@ import threading
 
 
 @contextmanager
-def session(executable, root):
+def wire_session(executable, root, *options):
     with subprocess.Popen(
-        [executable, "--workspace-root", root], cwd=root.parent,
+        [executable, "--workspace-root", root, *options], cwd=root.parent,
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         text=True, encoding="utf-8",
     ) as child:
         request_id = 0
 
-        def request(method, params, notify=False):
+        def send(method, params, notify=False):
             nonlocal request_id
             frame = {"jsonrpc": "2.0", "method": method, "params": params}
             if not notify:
@@ -28,13 +28,35 @@ def session(executable, root):
                 frame["id"] = request_id
             child.stdin.write(json.dumps(frame) + "\n")
             child.stdin.flush()
-            if not notify:
-                reply = json.loads(child.stdout.readline())
-                assert reply["id"] == request_id, reply
-                return reply["result"]
+            return request_id
 
+        def receive():
+            line = child.stdout.readline()
+            return json.loads(line), len(line.encode("utf-8"))
+
+        def request(method, params):
+            expected = send(method, params)
+            reply, _ = receive()
+            assert reply["id"] == expected, reply
+            return reply["result"]
+
+        try:
+            request("initialize", {"protocolVersion": "2025-11-25", "capabilities": {},
+                                    "clientInfo": {"name": "workspace-test", "version": "1"}})
+            send("notifications/initialized", {}, notify=True)
+            yield send, receive, request
+        finally:
+            child.stdin.close()
+            assert child.wait(timeout=5) == 0
+            assert child.stdout.read() == "" and child.stderr.read() == ""
+
+
+@contextmanager
+def session(executable, root, *options):
+    with wire_session(executable, root, *options) as (_, _, request):
         def call(name="structural_search", **args):
-            args["language"] = "python"
+            if name != "batch_search":
+                args.setdefault("language", "python")
             if name == "structural_search":
                 args.setdefault("query", "(identifier) @name")
             result = request("tools/call", {"name": name, "arguments": args})
@@ -44,15 +66,7 @@ def session(executable, root):
             assert data == json.loads(result["content"][0]["text"])
             return data
 
-        try:
-            request("initialize", {"protocolVersion": "2025-11-25", "capabilities": {},
-                                    "clientInfo": {"name": "workspace-test", "version": "1"}})
-            request("notifications/initialized", {}, notify=True)
-            yield call
-        finally:
-            child.stdin.close()
-            assert child.wait(timeout=5) == 0
-            assert child.stdout.read() == "" and child.stderr.read() == ""
+        yield call
 
 
 def write(root, path, data):

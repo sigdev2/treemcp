@@ -6,7 +6,7 @@
 namespace treemcp {
 namespace {
 
-std::optional<SourceRead> readOnce(const WorkspaceNode& file, qsizetype limit)
+std::optional<SourceRead> readOnce(const WorkspaceNode& file, qsizetype limit, const std::function<bool()>& stop)
 {
     const auto before = file.stamp();
     if (!before || before->size < 0) {
@@ -19,6 +19,9 @@ std::optional<SourceRead> readOnce(const WorkspaceNode& file, qsizetype limit)
     bytes.reserve(before->size);
     std::array<char, 65536> buffer;
     while (bytes.size() <= before->size) {
+        if (stop && stop()) {
+            return QStringLiteral("Workspace read interrupted");
+        }
         const qsizetype count =
             file.read(buffer.data(), std::min<qsizetype>(buffer.size(), before->size - bytes.size() + 1));
         if (count < 0) {
@@ -44,14 +47,19 @@ std::optional<SourceRead> readOnce(const WorkspaceNode& file, qsizetype limit)
 
 } // namespace
 
-SourceRead readText(const WorkspaceNode& parent, const QString& name, const WorkspaceNode& opened, qsizetype limit)
+SourceRead readText(
+    const WorkspaceNode& parent,
+    const QString& name,
+    const WorkspaceNode& opened,
+    qsizetype limit,
+    const std::function<bool()>& stop)
 {
-    if (auto result = readOnce(opened, limit)) {
+    if (auto result = readOnce(opened, limit, stop)) {
         return *result;
     }
     const auto replacement = parent.child(name);
     if (replacement.kind() == NodeKind::File) {
-        if (auto result = readOnce(replacement, limit)) {
+        if (auto result = readOnce(replacement, limit, stop)) {
             return *result;
         }
     }

@@ -1,5 +1,6 @@
 #include "Tools.hpp"
 
+#include "BatchSearch.hpp"
 #include "JsonRpc.hpp"
 #include "LanguageRegistry.hpp"
 #include "SingleFile.hpp"
@@ -15,7 +16,7 @@ const QJsonArray& catalog()
 {
     static const QJsonArray TOOLS = []() {
         QJsonArray tools;
-        for (const auto* name : { "languages", "query_validate", "syntax_tree", "structural_search" }) {
+        for (const auto* name : { "languages", "query_validate", "syntax_tree", "structural_search", "batch_search" }) {
             QFile file(QStringLiteral(":/schemas/%1.json").arg(QString::fromLatin1(name)));
             if (!file.open(QIODevice::ReadOnly)) {
                 return QJsonArray {};
@@ -80,14 +81,30 @@ QString validateArguments(const QJsonObject& schema, QJsonObject& arguments)
             {
                 return QStringLiteral("Invalid list for %1").arg(key);
             }
+            QJsonArray validated;
             const auto item = spec.value("items").toObject();
             for (const auto entry : entries) {
+                if (item.value("type") == "object") {
+                    if (!entry.isObject()) {
+                        return QStringLiteral("Expected an object in %1").arg(key);
+                    }
+                    auto object = entry.toObject();
+                    const QString error = validateArguments(item, object);
+                    if (!error.isEmpty()) {
+                        return error;
+                    }
+                    validated.append(object);
+                    continue;
+                }
                 const auto bytes = entry.toString().toUtf8().size();
                 if (!entry.isString() || bytes < item.value("minLength").toInt() ||
                     bytes > item.value("x-maxUtf8Bytes").toInt())
                 {
                     return QStringLiteral("Invalid entry for %1").arg(key);
                 }
+            }
+            if (item.value("type") == "object") {
+                arguments.insert(key, validated);
             }
         } else if (spec.value("type") == "string") {
             if (!value.isString() || (spec.contains("enum") && !spec.value("enum").toArray().contains(value))) {
@@ -126,6 +143,14 @@ QJsonObject languageList()
 
 } // namespace
 
+QJsonObject dataReply(const QJsonValue& id, const QJsonObject& data)
+{
+    return JsonRpc::success(
+        id,
+        { { "structuredContent", data },
+          { "content", textContent(QString::fromUtf8(QJsonDocument(data).toJson(QJsonDocument::Compact))) } });
+}
+
 QJsonObject list(const QJsonValue& id, const QJsonObject& params)
 {
     if (params.contains("cursor")) {
@@ -137,7 +162,21 @@ QJsonObject list(const QJsonValue& id, const QJsonObject& params)
     return JsonRpc::success(id, { { "tools", catalog() } });
 }
 
-QJsonObject call(const QJsonValue& id, const QJsonObject& params, const WorkspaceNode& root)
+QJsonObject batchReply(
+    const QJsonValue& id,
+    const QJsonObject& arguments,
+    const WorkspaceNode& root,
+    const BatchControl& control)
+{
+    const auto result = batchSearch(id, arguments, root, control);
+    if (const auto* failure = std::get_if<QString>(&result)) {
+        return toolError(id, *failure);
+    }
+    return dataReply(id, std::get<QJsonObject>(result));
+}
+
+std::optional<QJsonObject>
+    call(const QJsonValue& id, const QJsonObject& params, const WorkspaceNode& root, const BatchRunner& runBatch)
 {
     const QJsonValue name = params.value("name");
     const QJsonValue arguments = params.value("arguments");
@@ -157,16 +196,20 @@ QJsonObject call(const QJsonValue& id, const QJsonObject& params, const Workspac
         if (!error.isEmpty()) {
             return toolError(id, error);
         }
+        if (name == "batch_search") {
+            const QString problem = validateBatch(args);
+            if (!problem.isEmpty()) {
+                return toolError(id, problem);
+            }
+            return runBatch(args);
+        }
         const SingleFile::Result result =
             name == "languages" ? languageList() : SingleFile::run(name.toString(), args, root);
         if (const auto* failure = std::get_if<QString>(&result)) {
             return toolError(id, *failure);
         }
         const QJsonObject data = std::get<QJsonObject>(result);
-        const QJsonObject reply = JsonRpc::success(
-            id,
-            { { "structuredContent", data },
-              { "content", textContent(QString::fromUtf8(QJsonDocument(data).toJson(QJsonDocument::Compact))) } });
+        const QJsonObject reply = dataReply(id, data);
         constexpr qsizetype MAX_RESPONSE_BYTES = 1024 * 1024;
         if (QJsonDocument(reply).toJson(QJsonDocument::Compact).size() + 1 > MAX_RESPONSE_BYTES) {
             return toolError(id, QStringLiteral("Response exceeds byte limit"));

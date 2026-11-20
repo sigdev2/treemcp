@@ -38,6 +38,8 @@ add_library(treemcp_core STATIC
     src/mcp/Session.cpp
     src/mcp/StdioServer.cpp
     src/mcp/Tools.cpp
+    src/search/BatchSearch.cpp
+    src/search/Matches.cpp
     src/search/Query.cpp
     src/search/SingleFile.cpp
     src/workspace/Workspace.cpp
@@ -57,7 +59,7 @@ target_link_libraries(treemcp_core PRIVATE yyjson Threads::Threads)
 treemcp_set_warnings(treemcp_core)
 
 add_executable(structural-mcp src/main.cpp)
-set(tool_descriptors schemas/languages.json schemas/query_validate.json schemas/syntax_tree.json schemas/structural_search.json)
+set(tool_descriptors schemas/languages.json schemas/query_validate.json schemas/syntax_tree.json schemas/structural_search.json schemas/batch_search.json)
 qt_add_resources(structural-mcp "tool_catalog" PREFIX "/" FILES ${tool_descriptors})
 target_link_libraries(structural-mcp PRIVATE treemcp_core)
 treemcp_set_warnings(structural-mcp)

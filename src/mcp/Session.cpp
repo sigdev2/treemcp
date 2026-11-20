@@ -1,5 +1,6 @@
 #include "Session.hpp"
 
+#include "BatchSearch.hpp"
 #include "Tools.hpp"
 
 #include "treemcp/Version.hpp"
@@ -10,6 +11,19 @@ namespace {
 constexpr qsizetype MAX_SESSION_REQUESTS = 16384;
 
 } // namespace
+
+Session::~Session()
+{
+    stopBatch();
+}
+
+void Session::stopBatch()
+{
+    cancelled.store(true);
+    if (worker.joinable()) {
+        worker.join();
+    }
+}
 
 std::optional<QJsonObject> Session::handle(QByteArrayView frame)
 {
@@ -33,7 +47,11 @@ std::optional<QJsonObject> Session::dispatch(const JsonRpc::Request& request)
         if (validParams && request.method == "notifications/initialized" && phase == Phase::AwaitInitialized) {
             phase = Phase::Ready;
         }
-        // No deferred work exists in this milestone. Cancellation of a finished request is silent.
+        if (validParams && request.method == "notifications/cancelled" && !batchId.isUndefined() &&
+            params.value("requestId") == batchId)
+        {
+            cancelled.store(true);
+        }
         return std::nullopt;
     }
     if (usedIds.contains(id)) {
@@ -60,7 +78,33 @@ std::optional<QJsonObject> Session::dispatch(const JsonRpc::Request& request)
         return Tools::list(id, params);
     }
     if (request.method == "tools/call") {
-        return Tools::call(id, params, root);
+        const auto received = std::chrono::steady_clock::now();
+        return Tools::call(id, params, root, [&](const QJsonObject& arguments) -> std::optional<QJsonObject> {
+            if (!publish) {
+                return Tools::batchReply(id, arguments, root, { cancelled, workerCount, received });
+            }
+            if (worker.joinable()) {
+                return JsonRpc::error(id, -32001, QStringLiteral("Batch search already active"));
+            }
+            batchId = id;
+            cancelled.store(false);
+            worker = std::thread([this, id, arguments, received]() {
+                const auto reply = Tools::batchReply(id, arguments, root, { cancelled, workerCount, received });
+                QMetaObject::invokeMethod(
+                    this,
+                    [this, reply]() {
+                        if (worker.joinable()) {
+                            worker.join();
+                        }
+                        batchId = QJsonValue::Undefined;
+                        if (!cancelled.load()) {
+                            publish(reply);
+                        }
+                    },
+                    Qt::QueuedConnection);
+            });
+            return std::nullopt;
+        });
     }
     return JsonRpc::error(id, -32601, QStringLiteral("Method not found"));
 }

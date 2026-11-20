@@ -33,10 +33,15 @@ bool compileGlobs(const QStringList& patterns, QList<WorkspaceGlob>& output)
 
 class Scan {
 public:
-    Scan(const FileScope& selection, const SourceVisitor& onSource, const ScanDiagnostic& onError) :
+    Scan(
+        const FileScope& selection,
+        const SourceVisitor& onSource,
+        const ScanDiagnostic& onError,
+        const ScanOptions& limits) :
             scope(selection),
             visit(onSource),
-            report(onError)
+            report(onError),
+            options(limits)
     {
     }
 
@@ -58,7 +63,9 @@ public:
         if (!compileGlobs(scope.include, include) || !compileGlobs(scope.exclude, exclude)) {
             return QStringLiteral("Invalid workspace glob");
         }
-        walk(root, {}, selection, {});
+        if (!options.stop || !options.stop()) {
+            walk(root, {}, selection, {});
+        }
         return {};
     }
 
@@ -66,6 +73,7 @@ private:
     const FileScope& scope;
     const SourceVisitor& visit;
     const ScanDiagnostic& report;
+    const ScanOptions& options;
     QList<WorkspaceGlob> include;
     QList<WorkspaceGlob> exclude;
     int entries = 0;
@@ -82,6 +90,10 @@ private:
         }
         QSet<QString> found;
         const bool listed = directory.list([&](const QString& name, bool regularFile) {
+            if (options.stop && options.stop()) {
+                stopped = true;
+                return false;
+            }
             if (++entries > 100000) {
                 report(directoryPath, QStringLiteral("Directory entry limit exceeded"));
                 stopped = true;
@@ -162,12 +174,19 @@ private:
         if (!regularFile && !eligibleFile()) {
             return;
         }
-        if (++files > 10000) {
+        if (files == options.maxFiles) {
             report(path, QStringLiteral("Workspace file limit exceeded"));
             stopped = true;
             return;
         }
-        const auto read = readText(parent, name, node, MAX_FILE_BYTES);
+        ++files;
+        if (options.visitedFiles) {
+            *options.visitedFiles = files;
+        }
+        const auto read = readText(parent, name, node, MAX_FILE_BYTES, options.stop);
+        if (options.readFiles && !std::holds_alternative<QString>(read)) {
+            ++*options.readFiles;
+        }
         if (const auto* bytes = std::get_if<QByteArray>(&read)) {
             stopped = !visit(path, *bytes);
         } else if (const auto* error = std::get_if<QString>(&read)) {
@@ -182,9 +201,10 @@ QString scanWorkspace(
     const WorkspaceNode& root,
     const FileScope& scope,
     const SourceVisitor& visit,
-    const ScanDiagnostic& report)
+    const ScanDiagnostic& report,
+    const ScanOptions& options)
 {
-    return Scan(scope, visit, report).run(root);
+    return Scan(scope, visit, report, options).run(root);
 }
 
 SourceRead readWorkspaceFile(const WorkspaceNode& root, const QString& path)

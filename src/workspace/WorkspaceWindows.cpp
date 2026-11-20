@@ -2,6 +2,7 @@
 
 #include <array>
 #include <QDir>
+#include <QScopeGuard>
 
 #include <string>
 #include <windows.h>
@@ -22,6 +23,31 @@ QString finalName(HANDLE handle)
         return {};
     }
     return QString::fromWCharArray(buffer.data(), count);
+}
+
+NTSTATUS
+openRelative(HANDLE parent, const QString& component, ULONG flags, HANDLE& handle, ULONG sharing = FILE_SHARE_READ)
+{
+    std::wstring name = component.toStdWString();
+    const auto bytes = static_cast<USHORT>(name.size() * sizeof(wchar_t));
+    UNICODE_STRING leaf { bytes, bytes, name.data() };
+    OBJECT_ATTRIBUTES attributes {};
+    attributes.Length = sizeof(attributes);
+    attributes.RootDirectory = parent;
+    attributes.ObjectName = &leaf;
+    IO_STATUS_BLOCK statusBlock {};
+    return NtCreateFile(
+        &handle,
+        FILE_READ_DATA | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+        &attributes,
+        &statusBlock,
+        nullptr,
+        0,
+        sharing,
+        FILE_OPEN,
+        FILE_SYNCHRONOUS_IO_NONALERT | FILE_OPEN_REPARSE_POINT | flags,
+        nullptr,
+        0);
 }
 
 } // namespace
@@ -66,29 +92,9 @@ WorkspaceNode WorkspaceNode::child(const QString& component) const
     if (nodeKind != NodeKind::Directory || !validComponent(component)) {
         return WorkspaceNode(NodeKind::Error);
     }
-    std::wstring name = component.toStdWString();
-    const auto bytes = static_cast<USHORT>(name.size() * sizeof(wchar_t));
-    UNICODE_STRING leaf { bytes, bytes, name.data() };
-    OBJECT_ATTRIBUTES attributes {};
-    attributes.Length = sizeof(attributes);
-    attributes.RootDirectory = reinterpret_cast<HANDLE>(native);
-    attributes.ObjectName = &leaf;
-    IO_STATUS_BLOCK statusBlock {};
     HANDLE handle = nullptr;
-    // Each call resolves exactly one name relative to a pinned directory. A writer
-    // may replace a file between requests, but cannot modify it while we read it.
-    const NTSTATUS status = NtCreateFile(
-        &handle,
-        FILE_READ_DATA | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
-        &attributes,
-        &statusBlock,
-        nullptr,
-        0,
-        FILE_SHARE_READ,
-        FILE_OPEN,
-        FILE_SYNCHRONOUS_IO_NONALERT | FILE_OPEN_REPARSE_POINT,
-        nullptr,
-        0);
+    const HANDLE directory = reinterpret_cast<HANDLE>(native);
+    const NTSTATUS status = openRelative(directory, component, 0, handle);
     if (status < 0) {
         const ULONG error = RtlNtStatusToDosError(status);
         return WorkspaceNode(
@@ -105,7 +111,7 @@ WorkspaceNode WorkspaceNode::child(const QString& component) const
         CloseHandle(handle);
         return WorkspaceNode(NodeKind::Excluded);
     }
-    QString parent = finalName(attributes.RootDirectory);
+    QString parent = finalName(directory);
     if (parent.isEmpty()) {
         CloseHandle(handle);
         return WorkspaceNode(NodeKind::Error);
@@ -124,9 +130,18 @@ WorkspaceNode WorkspaceNode::child(const QString& component) const
 
 bool WorkspaceNode::list(const EntryVisitor& visit) const
 {
-    // Each synchronous walk owns its cursor until the callback returns. The
-    // startup root is reused, so explicitly restart its cursor on every walk.
-    const HANDLE directory = reinterpret_cast<HANDLE>(native);
+    // Independent open file descriptions keep concurrent walks from sharing a cursor.
+    HANDLE directory = nullptr;
+    if (openRelative(
+            reinterpret_cast<HANDLE>(native),
+            {},
+            FILE_DIRECTORY_FILE,
+            directory,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE) < 0)
+    {
+        return false;
+    }
+    const auto guard = qScopeGuard([directory]() { CloseHandle(directory); });
     FILE_INFO_BY_HANDLE_CLASS operation = FileIdBothDirectoryRestartInfo;
     alignas(FILE_ID_BOTH_DIR_INFO) std::array<std::byte, 8192> buffer;
     while (GetFileInformationByHandleEx(directory, operation, buffer.data(), sizeof(buffer))) {

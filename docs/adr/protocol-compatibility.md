@@ -39,16 +39,16 @@ Unknown notifications and unsolicited well-formed responses are ignored.
 
 ## Tool contract
 
-The catalog exposes `languages`, `query_validate`, `syntax_tree` and `structural_search`.
+The catalog exposes `languages`, `query_validate`, `syntax_tree`, `structural_search` and `batch_search`.
 Discovery and execution use `tools/list` and `tools/call`. A successful call
 returns the output object in `structuredContent` and its compact JSON in text
 content. Unknown tools and malformed calls return protocol errors. Arguments
 that violate a known tool's input schema produce a tool result with `isError`.
 [Official tool contract](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)
 
-The foundation handles requests synchronously. A cancellation arriving after
-completion is ignored. Worker cancellation and shutdown with active searches
-belong to the scheduler milestone. Client-specific compatibility requires a
+Batch calls execute asynchronously. A cancellation notification with the active
+batch request ID stops its workers and suppresses the reply. EOF also stops and
+joins an active batch. Other tools still execute synchronously. Client-specific compatibility requires a
 separate test against the named client and version.
 [Cancellation](https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/cancellation)
 

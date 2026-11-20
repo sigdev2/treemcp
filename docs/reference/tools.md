@@ -10,6 +10,7 @@ its `name` and `arguments` to `tools/call`.
 | [query_validate](../../schemas/query_validate.json) | `language`, `query` | `valid` and either a pattern count or a diagnostic with a UTF-8 byte offset |
 | [syntax_tree](../../schemas/syntax_tree.json) | `language` and one of `source` or `path` | Nodes in preorder with depth, type, named/missing flags and range |
 | [structural_search](../../schemas/structural_search.json) | `language`, `query` and one of `source`, `path` or `paths` | Matches in Tree-sitter cursor order with pattern indexes and ordered, named captures |
+| [batch_search](../../schemas/batch_search.json) | `queries` and `paths` | One ordered result per ID, scan statistics and completion flags |
 
 Supply `cpp` or `python`. Inline source and workspace files are parsed afresh on each call.
 
@@ -130,3 +131,61 @@ nodes, matches, captures or text. `capturesTruncated` and `textTruncated` locate
 clipping within a returned match. Ranges always describe the full capture.
 `incomplete` means the query cursor dropped in-progress states or the workspace scope could only be searched in part. An empty match
 array with both flags false means the query completed with no matches.
+
+## Batch search
+
+Use `batch_search` when several queries share file selectors and filters.
+Each query requires a unique string `id`, an explicit `language` and a `query`.
+The workspace traversal, extension filtering and predicates follow the same rules
+as a scoped `structural_search`.
+
+```json
+{
+  "name": "batch_search",
+  "arguments": {
+    "paths": ["src", "tests"],
+    "queries": [
+      {"id": "definitions", "language": "python", "query": "(function_definition name: (identifier) @name)", "maxMatches": 50},
+      {"id": "cpp_calls", "language": "cpp", "query": "(call_expression function: (identifier) @callee)"}
+    ],
+    "maxTotalMatches": 100
+  }
+}
+```
+
+| Input | Default | Accepted range |
+| --- | --- | --- |
+| `queries` | Required | 1 to 16 items, up to 256 KiB aggregate UTF-8 query text |
+| Item `id` | Required | 1 to 128 UTF-8 bytes |
+| Item `maxMatches` | 100 | 1 to 200 |
+| `maxTotalMatches` | 200 | 1 to 200 |
+| `maxFiles` | 10,000 | 1 to 10,000 eligible candidates |
+| `maxResponseBytes` | 8 MiB | 128 KiB to 8 MiB for the full NDJSON reply |
+| `deadlineMs` | 30,000 | 1 to 300,000 milliseconds |
+| `sort` | `path` | `path` |
+
+The response's `items` array preserves input order and IDs. Earlier items
+receive first claim on the global match and response budgets. Matches sort by
+UTF-8 path, first capture range, pattern index and ordered captures. Sorting
+covers the files actually searched. A file or deadline limit can leave part of
+the scope unexamined.
+
+An unknown grammar or invalid query produces an item-local `error` with a
+message and, for query diagnostics, a UTF-8 byte offset. Each item reports
+`truncated` for clipped or omitted output and `incomplete` for unfinished
+execution or an error. A successful item with empty matches and both flags
+false completed with no hits. The outer flags summarize all items.
+`deadlineExceeded` identifies a deadline, and `diagnostics` records up to 16
+workspace or execution diagnostics.
+
+In `stats`, `filesVisited` counts eligible files admitted for a read and
+`filesRead` counts coherent reads including binary files discarded by the
+text filter. `filesParsed` counts distinct files yielding a tree. `treeBuilds`
+counts successful file/grammar parses and `queryExecutions` counts item/file
+searches. Counts apply to this request only.
+
+Use the server option `--batch-workers 1` through `--batch-workers 8` to set file
+parallelism. The default uses the available CPU count capped at eight. One
+batch can run at a time per server. A small search or ping can run while the
+batch is active. Cancel by sending `notifications/cancelled` with the outer
+JSON-RPC request ID in `params.requestId`.

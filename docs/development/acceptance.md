@@ -1,7 +1,7 @@
 # Release acceptance criteria
 
-The [current tests](testing.md) cover the build, synchronous MCP tools, workspace
-filters, handle checks and per-request freshness.
+The [current tests](testing.md) cover the build, MCP tools, workspace filters, handle checks, per-request freshness,
+batch sharing, deterministic limits and batch cancellation.
 Before version 1.0.0, implement the suites below and retain their fixture revisions,
 toolchain versions, configuration and results with the release evidence.
 
@@ -89,7 +89,7 @@ these correctness checks does not establish a performance claim.
 - Validate skill frontmatter, discover the installed `structural-search` skill
   without ID collisions and load it through the client.
 - Launch the server from the documented configuration, complete the handshake and
-  discover all five planned tools: languages, query_validate, syntax_tree,
+  discover all five tools: languages, query_validate, syntax_tree,
   structural_search and batch_search.
 - Verify a single query uses structural_search and compatible queries over one
   scope use batch_search with correct item IDs and no redundant scans.

@@ -4,15 +4,15 @@
 | --- | --- | --- |
 | Language and Qt | C++20, Qt Core only | Implemented |
 | Parser dependencies | Embedded, pinned Tree-sitter and compiled grammars | C++ and Python included |
-| Search language | Tree-sitter S-expression queries | Single-file compilation, validation and execution |
+| Search language | Tree-sitter S-expression queries | Single and batch compilation, validation and execution |
 | Protocol | stdio, UTF-8 NDJSON, JSON-RPC, one stdout writer | MCP 2025-11-25 on Windows and POSIX |
-| Tools | languages, query_validate, syntax_tree, structural_search, batch_search | First four available, including workspace tree inspection and search |
-| Freshness | Fresh file reads and trees per request | Implemented for single queries |
+| Tools | languages, query_validate, syntax_tree, structural_search, batch_search | All five available |
+| Freshness | Fresh file reads and trees per request | Implemented for single and batch searches |
 | Persistence | No workspace cache, state files or runtime logs on disk | No such runtime behavior |
 | File access | Immutable root, secure handles, coherent reads | Implemented on Windows and POSIX |
-| Scheduling | Bounded admission, fair workers and aggregate batch budgets | Planned |
-| Cancellation | Cooperative cancellation, deadlines and child cleanup | Planned |
-| Results | Bounded, precise ranges and deterministic sorted selection | Single-file ranges and limits implemented, workspace sorting planned |
+| Scheduling | Bounded admission, fair workers and aggregate batch budgets | Bounded batch admission and worker count, general scheduler planned |
+| Cancellation | Cooperative cancellation, deadlines and child cleanup | Implemented for batches |
+| Results | Bounded, precise ranges and deterministic sorted selection | Single-file ranges and deterministic batch top-K implemented |
 | Client integration | Tested OpenCode v2 skill and configuration | Planned |
 
 ## Acceptance groups
@@ -39,9 +39,7 @@ These must be settled before publishing stable schemas:
 
 1. Define how an administrator may select batch sizes above the default 16 and
    below the hard cap 64. Advertised schemas must reflect the active limit.
-2. Extend the single-file strict object definitions and partial-result reporting
-   to the batch output contract.
-3. Pin and test the [OpenCode configuration and skill format](../integrations/opencode-v2.md)
+2. Pin and test the [OpenCode configuration and skill format](../integrations/opencode-v2.md)
    before distributing a working client configuration.
 
 Resolve these choices in architecture decisions and tests. Do not silently treat
