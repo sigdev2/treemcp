@@ -4,13 +4,12 @@
 
 namespace treemcp {
 
-std::optional<WorkspaceGlob> WorkspaceGlob::compile(QString pattern, qsizetype baseDepth)
+std::optional<WorkspaceGlob> WorkspaceGlob::compile(QString pattern)
 {
     if (pattern.size() > 512 || pattern.contains('\\') || pattern.contains(QChar::Null)) {
         return std::nullopt;
     }
     WorkspaceGlob glob;
-    glob.base = baseDepth;
     glob.directoriesOnly = pattern.endsWith('/');
     if (glob.directoriesOnly) {
         pattern.chop(1);
@@ -45,7 +44,7 @@ bool WorkspaceGlob::matches(const QStringList& parts, bool directory) const
     if (directoriesOnly && !directory) {
         return false;
     }
-    qsizetype path = basename ? parts.size() - 1 : base;
+    qsizetype path = basename ? parts.size() - 1 : 0;
     qsizetype pattern = 0;
     qsizetype star = -1;
     qsizetype consumed = path;
@@ -69,13 +68,13 @@ bool WorkspaceGlob::matches(const QStringList& parts, bool directory) const
     return pattern == components.size();
 }
 
-QString IgnoreRules::extend(const WorkspaceNode& directory, qsizetype depth, const std::function<bool()>& stop)
+QString IgnoreRules::extend(const WorkspaceNode& directory, qsizetype baseOffset, const std::function<bool()>& stop)
 {
     for (const auto& name : { QStringLiteral(".gitignore"), QStringLiteral(".ignore") }) {
         if (stop && stop()) {
             break;
         }
-        const QString error = readFile(directory, name, depth, stop);
+        const QString error = readFile(directory, name, baseOffset, stop);
         if (!error.isEmpty()) {
             return error;
         }
@@ -84,7 +83,10 @@ QString IgnoreRules::extend(const WorkspaceNode& directory, qsizetype depth, con
 }
 
 QString IgnoreRules::readFile(
-    const WorkspaceNode& directory, const QString& name, qsizetype depth, const std::function<bool()>& stop)
+    const WorkspaceNode& directory,
+    const QString& name,
+    qsizetype baseOffset,
+    const std::function<bool()>& stop)
 {
     const auto file = directory.child(name);
     if (file.kind() == NodeKind::Missing) {
@@ -98,36 +100,60 @@ QString IgnoreRules::readFile(
     if (!bytes) {
         return QStringLiteral("Cannot read bounded UTF-8 %1").arg(name);
     }
-    for (QString line : QString::fromUtf8(*bytes).split('\n')) {
+    QByteArrayView remaining(*bytes);
+    if (remaining.startsWith("\xef\xbb\xbf")) {
+        remaining = remaining.sliced(3);
+    }
+    while (!remaining.empty()) {
         if (stop && stop()) {
             return {};
         }
+        const auto lf = remaining.indexOf('\n');
+        auto line = lf < 0 ? remaining : remaining.first(lf);
+        remaining = remaining.sliced(lf < 0 ? remaining.size() : lf + 1);
         if (line.endsWith('\r')) {
             line.chop(1);
         }
-        while (line.endsWith(' ')) {
-            line.chop(1);
-        }
-        if (line.isEmpty() || line.startsWith('#')) {
+        if (line.startsWith('#')) {
             continue;
+        }
+        // A quoted space is significant even if more unquoted spaces follow.
+        qsizetype length = 0;
+        for (qsizetype i = 0; i < line.size(); ++i) {
+            if (line[i] != ' ') {
+                if (line[i] == '\\' && i + 1 < line.size()) {
+                    ++i;
+                }
+                length = i + 1;
+            }
+        }
+        line = line.first(length);
+        if (line.empty()) {
+            continue;
+        }
+        if (line.size() > 512) {
+            return QStringLiteral("%1 pattern exceeds 512 bytes").arg(name);
+        }
+        if (rules.size() >= 256) {
+            return QStringLiteral("Active ignore rule limit exceeded in %1").arg(name);
         }
         const bool exclude = !line.startsWith('!');
         if (!exclude) {
-            line.remove(0, 1);
+            line = line.sliced(1);
         }
-        auto glob = WorkspaceGlob::compile(line, depth);
-        if (!glob || rules.size() >= 256) {
-            return QStringLiteral("Invalid %1 pattern or active rule limit exceeded").arg(name);
-        }
-        rules.append({ std::move(*glob), exclude });
+        rules.append({ IgnorePattern(line), baseOffset, exclude });
     }
     return {};
 }
 
-bool IgnoreRules::excludes(const QStringList& parts, bool directory) const
+bool IgnoreRules::excludes(QByteArrayView path, bool directory, const std::function<bool()>& stop) const
 {
+    const auto basename = path.sliced(path.lastIndexOf('/') + 1);
     for (auto it = rules.crbegin(); it != rules.crend(); ++it) {
-        if (it->glob.matches(parts, directory)) {
+        if (stop && stop()) {
+            return false;
+        }
+        if (it->pattern.matches(path.sliced(it->baseOffset), basename, directory, stop)) {
             return it->exclude;
         }
     }

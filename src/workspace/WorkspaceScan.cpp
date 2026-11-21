@@ -90,7 +90,8 @@ private:
         IgnoreRules rules)
     {
         const QString directoryPath = prefix.isEmpty() ? QStringLiteral(".") : prefix.join('/');
-        const QString error = rules.extend(*directory, prefix.size(), options.stop);
+        const auto baseOffset = prefix.isEmpty() ? 0 : directoryPath.toUtf8().size() + 1;
+        const QString error = rules.extend(*directory, baseOffset, options.stop);
         if (!error.isEmpty()) {
             report(directoryPath, error);
             return;
@@ -148,13 +149,20 @@ private:
             return;
         }
         const QString path = parts.join('/');
-        if (parts.size() > 64 || path.toUtf8().size() > MAX_PATH_BYTES) {
+        const QByteArray pathBytes = path.toUtf8();
+        if (parts.size() > 64 || pathBytes.size() > MAX_PATH_BYTES) {
             report(path, QStringLiteral("Workspace path limit exceeded"));
             return;
         }
-        const auto excluded = [&](bool dir) { return matches(exclude, parts, dir) || rules.excludes(parts, dir); };
+        const auto excluded = [&](bool dir) {
+            return matches(exclude, parts, dir) || rules.excludes(pathBytes, dir, options.stop);
+        };
         const bool excludeFile = excluded(false);
         const bool excludeDirectory = ignoreDirectory || excluded(true);
+        if (options.stop && options.stop()) {
+            stopped = true;
+            return;
+        }
         if (excludeDirectory && (kind == NodeKind::Directory || excludeFile)) {
             return;
         }

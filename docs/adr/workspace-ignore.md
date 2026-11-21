@@ -1,7 +1,6 @@
 # Workspace ignore rules
 
-Status: accepted design. The current implementation supports the subset documented
-in the [tool reference](../reference/tools.md#filters-and-limits).
+Implemented for both search tools and single-file access.
 
 ## Which paths to search
 
@@ -69,3 +68,8 @@ UTF-8 names and malformed patterns in the reference fixtures. Test TreeMCP's
 additional behavior through single-file and scoped structural search and batch
 search on Windows and Linux, including mixed rule files, limits, explicit paths,
 tracked files and changes between requests.
+
+The `workspace.ignore` CTest runs the [reference fixtures](../../tests/fixtures/workspace-ignore.json)
+offline. To compare the same decisions with an installed Git and exercise
+tracked files, run `python -B tests/check_ignore.py <structural-mcp-executable> --git`
+in the build environment.

@@ -43,6 +43,7 @@ add_library(treemcp_core STATIC
     src/search/Matches.cpp
     src/search/Query.cpp
     src/search/SingleFile.cpp
+    src/workspace/IgnorePattern.cpp
     src/workspace/Workspace.cpp
     src/workspace/WorkspaceFilter.cpp
     src/workspace/WorkspaceScan.cpp

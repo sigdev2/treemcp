@@ -19,20 +19,28 @@ target_link_libraries(check-scheduler PRIVATE treemcp_core)
 treemcp_set_warnings(check-scheduler)
 add_test(NAME scheduler.workers COMMAND check-scheduler)
 
-set(protocol_tests scheduler.workers bootstrap.runtime bootstrap.cli protocol.decoder protocol.stdio search.stdio)
+add_executable(check-ignore-pattern CheckIgnorePattern.cpp)
+target_link_libraries(check-ignore-pattern PRIVATE treemcp_core)
+treemcp_set_warnings(check-ignore-pattern)
+add_test(NAME workspace.ignore-pattern COMMAND check-ignore-pattern)
+
+set(protocol_tests scheduler.workers bootstrap.runtime bootstrap.cli protocol.decoder protocol.stdio search.stdio
+    workspace.ignore-pattern)
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
     add_test(NAME search.queries COMMAND "${Python3_EXECUTABLE}"
         -B "${CMAKE_CURRENT_SOURCE_DIR}/check_search_queries.py" "$<TARGET_FILE:structural-mcp>")
     add_test(NAME workspace.stdio COMMAND "${Python3_EXECUTABLE}"
         "${CMAKE_CURRENT_SOURCE_DIR}/check_workspace.py" "$<TARGET_FILE:structural-mcp>")
+    add_test(NAME workspace.ignore COMMAND "${Python3_EXECUTABLE}"
+        -B "${CMAKE_CURRENT_SOURCE_DIR}/check_ignore.py" "$<TARGET_FILE:structural-mcp>")
     foreach(suite correctness corpus)
         add_test(NAME batch.${suite} COMMAND "${Python3_EXECUTABLE}"
             -B "${CMAKE_CURRENT_SOURCE_DIR}/check_batch.py" "$<TARGET_FILE:structural-mcp>" "${suite}")
     endforeach()
     add_test(NAME scheduler.stdio COMMAND "${Python3_EXECUTABLE}"
         -B "${CMAKE_CURRENT_SOURCE_DIR}/check_concurrency.py" "$<TARGET_FILE:structural-mcp>")
-    list(APPEND protocol_tests scheduler.stdio search.queries workspace.stdio batch.correctness batch.corpus)
+    list(APPEND protocol_tests scheduler.stdio search.queries workspace.stdio workspace.ignore batch.correctness batch.corpus)
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")

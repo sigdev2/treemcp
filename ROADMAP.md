@@ -59,7 +59,7 @@ Version 0.1.0 is the bootstrap; 1.0.0 requires all release gates below.
 - [x] Decide workspace ignore semantics and the matcher dependency policy.
   The [architecture decision](docs/adr/workspace-ignore.md) defines rule
   precedence, Git pattern compatibility, limits and reference tests.
-- [ ] Implement the full ignore-file pattern syntax in the project-owned matcher
+- [x] Implement the full ignore-file pattern syntax in the project-owned matcher
   and verify it against the Git reference fixtures on Windows and Linux.
 
 ## 4. Batch search (required for MVP)

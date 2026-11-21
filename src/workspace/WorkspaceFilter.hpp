@@ -1,6 +1,7 @@
 #ifndef TREEMCP_WORKSPACEFILTER_HPP
 #define TREEMCP_WORKSPACEFILTER_HPP
 
+#include "IgnorePattern.hpp"
 #include "WorkspaceNode.hpp"
 
 #include <QRegularExpression>
@@ -10,31 +11,34 @@ namespace treemcp {
 
 class WorkspaceGlob {
 public:
-    static std::optional<WorkspaceGlob> compile(QString pattern, qsizetype baseDepth = 0);
+    static std::optional<WorkspaceGlob> compile(QString pattern);
     bool matches(const QStringList& parts, bool directory) const;
 
 private:
     // An empty expression represents a whole ** component.
     QList<QRegularExpression> components;
-    qsizetype base = 0;
     bool basename = false;
     bool directoriesOnly = false;
 };
 
 class IgnoreRules {
 public:
-    QString extend(const WorkspaceNode& directory, qsizetype depth, const std::function<bool()>& stop);
-    bool excludes(const QStringList& parts, bool directory) const;
+    QString extend(const WorkspaceNode& directory, qsizetype baseOffset, const std::function<bool()>& stop);
+    bool excludes(QByteArrayView path, bool directory, const std::function<bool()>& stop) const;
 
 private:
     struct Rule {
-        WorkspaceGlob glob;
+        IgnorePattern pattern;
+        qsizetype baseOffset;
         bool exclude;
     };
     QList<Rule> rules;
 
     QString readFile(
-        const WorkspaceNode& directory, const QString& name, qsizetype depth, const std::function<bool()>& stop);
+        const WorkspaceNode& directory,
+        const QString& name,
+        qsizetype baseOffset,
+        const std::function<bool()>& stop);
 };
 
 } // namespace treemcp

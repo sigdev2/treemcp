@@ -73,18 +73,26 @@ A failed single-file read returns a tool error.
 - `include` selects files. `exclude` can prune files or directories. Both take
   up to 64 case-sensitive globs of 512 UTF-8 bytes each and require `paths`.
   Up to 64 path selectors are accepted.
-- A slashless glob matches a basename anywhere. A leading slash anchors it.
-  Patterns containing a slash are relative to the workspace or the directory
-  containing the ignore file. A trailing slash selects directories.
+- A slashless request glob matches a basename anywhere. A leading slash anchors
+  it at the workspace root. A glob containing an internal slash is relative to
+  the workspace root. A trailing slash selects directories.
   `*`, `?` and bracket classes match within one component. A whole `**` spans
   components. For example, `src/**/*.py` also selects `src/main.py`.
 - Each directory inherits its parents' rules, then reads its own `.gitignore`
-  followed by `.ignore`. Both files use the same pattern syntax.
-  Blank lines and lines starting with `#` are skipped. The last matching rule
-  wins. A leading `!` re-includes an entry if its parent is still traversed.
-  The supported subset excludes backslash escapes and external Git configuration.
-  An unreadable or invalid ignore file skips its subtree with a diagnostic.
-  Ignore files may contain up to 64 KiB and 256 rules may be active at once.
+  followed by `.ignore`. Both use Git 2.55.0 pattern syntax and match UTF-8 bytes
+  case-sensitively. A leading or internal slash makes a pattern relative to the
+  ignore file's directory. A trailing slash selects directories. For example,
+  `out/**/x?.py` matches `out/xa.py` and `out/sub/xa.py`. Bracket expressions
+  support byte ranges, negation and named classes such as `[[:digit:]]`.
+- Blank lines and lines starting with `#` are skipped. Backslash quotes the
+  following byte, including a leading `#` or `!` and trailing spaces. The last
+  matching rule wins. A leading `!` re-includes an entry if its parent is still
+  traversed. A malformed wildcard affects only its own rule. The same rules
+  apply to tracked and untracked files. [Workspace ignore rules](../adr/workspace-ignore.md)
+- Ignore files accept LF, CRLF and an initial UTF-8 BOM. Limits are 64 KiB per
+  file, 512 UTF-8 bytes per pattern and 256 active rules across both files and
+  all ancestors. An unreadable, binary, invalid UTF-8 or over-limit ignore file
+  skips its subtree with a diagnostic.
 - Hidden names, Windows hidden attributes, links and reparse points, special
   files and binary data are excluded. UTF-8 text may contain tab, CR, LF and
   form feed. Other C0 control bytes are classified as binary. Explicit single-file

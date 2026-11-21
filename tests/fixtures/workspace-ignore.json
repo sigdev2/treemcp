@@ -1,0 +1,47 @@
+{
+  "reference": "git version 2.55.0.windows.5",
+  "rules": {
+    ".gitignore": [
+      "\ufeff\\#tag.py\r", "\\!important.py\r", "#comment.py\r", "", " leading.py",
+      "space\\ inside.py", "trim.py   ", "quoted.py\\   ", "\\[bracket].py", "only.py/",
+      "/root.py", "prune/", "!prune/keep.py", "contents/**", "!contents/keep.py", "**/deep.py",
+      "stars/**/z.py", "triple/***/x.py", "middle/a**b/x.py", "n?.py", "two??.py", "café.py",
+      "case.py", "track.py", "scope/again.py", "order.py", "!order.py", "last.py"
+    ],
+    "brackets/.gitignore": [
+      "range[a-c].py", "inverse[!a-c].py", "caret[^x].py", "right[]-].py", "quoted[\\]].py",
+      "reversed[z-a].py", "num[[:digit:]].py", "hex[[:xdigit:]].py", "upper[[:upper:]].py",
+      "mix[[:lower:]_].py", "broken[abc", "unknown[[:absent:]].py", "dangling.py\\",
+      "survives.py", "fallback[[:a].py"
+    ],
+    "scope/.gitignore": ["!again.py", "/anchored.py", "child/*/leaf.py", "escaped\\/slash.py"],
+    "extra/.gitignore": [
+      "alnum[[:alnum:]].py", "alpha[[:alpha:]].py", "punct[[:punct:]].py", "graph[[:graph:]].py",
+      "folders/**\\/x.py", "repeat/**/**/leaf.py"
+    ],
+    "é/.gitignore": ["/top.py"]
+  },
+  "excluded": [
+    "#tag.py", "!important.py", " leading.py", "space inside.py", "trim.py", "[bracket].py",
+    "only.py/child.py", "root.py", "prune/keep.py", "contents/drop.py", "contents/sub/keep.py",
+    "deep.py", "x/deep.py", "stars/z.py", "stars/one/two/z.py", "triple/x.py", "triple/dir/x.py",
+    "middle/ab/x.py", "middle/alongb/x.py", "na.py", "twoé.py", "café.py", "track.py", "last.py",
+    "brackets/rangeb.py", "brackets/inversez.py", "brackets/carety.py", "brackets/right].py",
+    "brackets/right-.py", "brackets/quoted].py", "brackets/reversedz.py", "brackets/num3.py",
+    "brackets/hexF.py", "brackets/upperZ.py", "brackets/mix_.py", "brackets/mixq.py",
+    "brackets/survives.py", "brackets/fallback[.py",
+    "scope/anchored.py", "scope/child/one/leaf.py", "scope/escaped/slash.py",
+    "extra/alnum0.py", "extra/alphaQ.py", "extra/punct_.py", "extra/graph~.py",
+    "extra/folders/one/two/x.py", "extra/repeat/leaf.py", "extra/repeat/a/b/leaf.py", "é/top.py"
+  ],
+  "visible": [
+    "#comment.py", "leading.py", "quoted.py", "sub/only.py", "sub/root.py", "contents/keep.py",
+    "stars/one/z2.py", "middle/a/b/x.py", "né.py", "twoa.py", "Case.py", "order.py", "scope/again.py",
+    "scope/sub/anchored.py", "scope/child/leaf.py", "scope/child/one/two/leaf.py",
+    "brackets/ranged.py", "brackets/inverseb.py", "brackets/caretx.py", "brackets/righta.py",
+    "brackets/reverseda.py", "brackets/numq.py", "brackets/hexG.py", "brackets/upperq.py",
+    "brackets/mix9.py", "brackets/unknownx.py", "brackets/broken[abc.py", "brackets/dangling.py",
+    "extra/alnum-.py", "extra/alpha9.py", "extra/puncta.py", "extra/graph .py", "extra/folders/x.py",
+    "é/sub/top.py"
+  ]
+}
