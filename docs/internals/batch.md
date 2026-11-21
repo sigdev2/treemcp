@@ -4,14 +4,14 @@ One `tools/call` runs an ordered list of queries over a shared workspace scope.
 The dispatcher validates the schema, unique IDs, aggregate query bytes, selectors,
 globs and budgets before admitting the request. One batch can run per session.
 A second concurrent batch receives JSON-RPC error `-32001`. The main thread
-continues to handle protocol messages and ordinary tool calls.
+continues to handle protocol messages and admit single searches.
 
 A coordinator compiles each query once, groups valid items by grammar and scans
 the union of their file extensions. The workspace walker deduplicates overlapping
-selectors. It reads each selected file through its opened handle, with one retry
-for a detected change. The coordinator hands each coherent UTF-8 buffer to a
-file worker. At most `--batch-workers` jobs are outstanding and the scanner
-can hold one further file while awaiting capacity.
+selectors. The coordinator hands the opened file and its parent directory handle
+to a worker in the shared pool. The worker reads the file, with one retry for a
+detected change. At most `--workers` file jobs are outstanding. The scanner can
+hold one further opened file while waiting for capacity.
 
 A worker owns its file's source, parser, trees and cursors. It builds one tree
 per applicable grammar and runs that grammar's queries against it. Compiled
@@ -27,15 +27,18 @@ bytes, the first capture's start and end byte (zero for a captureless match),
 pattern index and the sequence of displayed capture ranges and names. Equivalent
 keys have identical displayed content within a coherent file read.
 
-The coordinator joins the workers before building the response. It charges
+The coordinator waits for every child job to release its state before building the response. It charges
 the complete empty JSON-RPC envelope and adds matches in item and sort order.
 Each entry consumes its structured JSON bytes, its escaped text representation
 and any separating commas. The budget includes the terminating LF.
 
 Cancellation and the monotonic deadline are checked during traversal, file
-reads, parsing and matching. A deadline returns incomplete results. Explicit
-cancellation and stdin closure stop the batch, join the workers and suppress
-its reply. Only the main thread publishes responses.
+reads, parsing, matching and response construction. A deadline returns incomplete
+results. If traversal expires with hits already collected, the coordinator
+allows up to five milliseconds to select a prefix for the reply, checking
+between entries. Explicit cancellation also interrupts this finalization. On
+cancellation or EOF the coordinator waits for running children to finish before
+releasing the batch. Only the main thread publishes responses.
 
 See the [tool reference](../reference/tools.md#batch-search) for arguments,
 limits, statistics and partial-result semantics.

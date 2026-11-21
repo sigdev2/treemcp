@@ -141,11 +141,14 @@ std::optional<QByteArrayView>
 
 } // namespace
 
-bool Predicate::accepts(const TSQueryMatch& match, QByteArrayView source) const
+bool Predicate::accepts(const TSQueryMatch& match, QByteArrayView source, const SearchStop& stop) const
 {
     uint32_t left = 0;
     uint32_t right = 0;
     while (const auto value = nextCapture(match, capture, left, source)) {
+        if (stop.requested()) {
+            return false;
+        }
         if (otherCapture) {
             const auto other = nextCapture(match, *otherCapture, right, source);
             if (!other || ((*value == *other) == negated)) {

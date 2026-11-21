@@ -23,7 +23,7 @@ private:
 
 class IgnoreRules {
 public:
-    QString extend(const WorkspaceNode& directory, qsizetype depth);
+    QString extend(const WorkspaceNode& directory, qsizetype depth, const std::function<bool()>& stop);
     bool excludes(const QStringList& parts, bool directory) const;
 
 private:

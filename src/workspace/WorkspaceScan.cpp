@@ -36,7 +36,7 @@ public:
     Scan(
         const Workspace& searchWorkspace,
         const FileScope& selection,
-        const SourceVisitor& onSource,
+        const FileVisitor& onSource,
         const ScanDiagnostic& onError,
         const ScanOptions& limits) :
             workspace(searchWorkspace),
@@ -74,7 +74,7 @@ public:
 private:
     const Workspace& workspace;
     const FileScope& scope;
-    const SourceVisitor& visit;
+    const FileVisitor& visit;
     const ScanDiagnostic& report;
     const ScanOptions& options;
     QList<WorkspaceGlob> include;
@@ -83,16 +83,20 @@ private:
     int files = 0;
     bool stopped = false;
 
-    void walk(const WorkspaceNode& directory, const QStringList& prefix, const Selection& selection, IgnoreRules rules)
+    void walk(
+        const std::shared_ptr<const WorkspaceNode>& directory,
+        const QStringList& prefix,
+        const Selection& selection,
+        IgnoreRules rules)
     {
         const QString directoryPath = prefix.isEmpty() ? QStringLiteral(".") : prefix.join('/');
-        const QString error = rules.extend(directory, prefix.size());
+        const QString error = rules.extend(*directory, prefix.size(), options.stop);
         if (!error.isEmpty()) {
             report(directoryPath, error);
             return;
         }
         QSet<QString> found;
-        const bool listed = directory.list([&](const QString& name, NodeKind kind) {
+        const bool listed = directory->list([&](const QString& name, NodeKind kind) {
             if (options.stop && options.stop()) {
                 stopped = true;
                 return false;
@@ -132,7 +136,7 @@ private:
     }
 
     void process(
-        const WorkspaceNode& parent,
+        const std::shared_ptr<const WorkspaceNode>& parent,
         const QStringList& parts,
         const Selection& selection,
         const IgnoreRules& rules,
@@ -164,10 +168,10 @@ private:
         if (kind == NodeKind::File && selection.all && !eligibleFile()) {
             return;
         }
-        const auto node = parent.child(name);
+        auto node = parent->child(name);
         if (node.kind() == NodeKind::Directory) {
             if (!excludeDirectory && !(scope.singleFile && selection.all)) {
-                walk(node, parts, selection, rules);
+                walk(std::make_shared<WorkspaceNode>(std::move(node)), parts, selection, rules);
             }
             return;
         }
@@ -190,15 +194,7 @@ private:
         if (options.visitedFiles) {
             *options.visitedFiles = files;
         }
-        const auto read = readText(parent, name, node, MAX_FILE_BYTES, options.stop);
-        if (options.readFiles && !std::holds_alternative<QString>(read)) {
-            ++*options.readFiles;
-        }
-        if (const auto* bytes = std::get_if<QByteArray>(&read)) {
-            stopped = !visit(path, *bytes);
-        } else if (const auto* error = std::get_if<QString>(&read)) {
-            report(path, *error);
-        }
+        stopped = !visit(path, { parent, name, std::move(node) });
     }
 };
 
@@ -207,25 +203,34 @@ private:
 QString scanWorkspace(
     const Workspace& workspace,
     const FileScope& scope,
-    const SourceVisitor& visit,
+    const FileVisitor& visit,
     const ScanDiagnostic& report,
     const ScanOptions& options)
 {
     return Scan(workspace, scope, visit, report, options).run();
 }
 
-SourceRead readWorkspaceFile(const Workspace& workspace, const QString& path)
+SourceRead SelectedFile::read(const std::function<bool()>& stop) const
+{
+    return readText(*parent, name, node, MAX_FILE_BYTES, stop);
+}
+
+SourceRead readWorkspaceFile(const Workspace& workspace, const QString& path, const std::function<bool()>& stop)
 {
     SourceRead result = QStringLiteral("Expected an eligible regular UTF-8 workspace file");
     const FileScope scope { { path }, {}, {}, {}, true };
     const QString error = scanWorkspace(
         workspace,
         scope,
-        [&](const QString&, const QByteArray& bytes) {
-            result = bytes;
+        [&](const QString&, SelectedFile file) {
+            auto read = file.read(stop);
+            if (!std::holds_alternative<BinaryFile>(read)) {
+                result = std::move(read);
+            }
             return false;
         },
-        [&](const QString&, const QString& diagnostic) { result = diagnostic; });
+        [&](const QString&, const QString& diagnostic) { result = diagnostic; },
+        { 10000, stop });
     if (!error.isEmpty()) {
         return error;
     }

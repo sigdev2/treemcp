@@ -10,8 +10,8 @@
 | Freshness | Fresh file reads and trees per request | Implemented for single and batch searches |
 | Persistence | No workspace cache, state files or runtime logs on disk | No such runtime behavior |
 | File access | Immutable root, secure handles, coherent reads | Implemented on Windows and POSIX |
-| Scheduling | Bounded admission, fair workers and aggregate batch budgets | Bounded batch admission and worker count, general scheduler planned |
-| Cancellation | Cooperative cancellation, deadlines and child cleanup | Implemented for batches |
+| Scheduling | Bounded admission, fair workers and aggregate batch budgets | Request and cost limits, shared workers, alternating FIFO queues |
+| Cancellation | Cooperative cancellation, deadlines and child cleanup | Implemented for queued and running single and batch searches |
 | Results | Bounded, precise ranges and deterministic sorted selection | Single-file ranges and deterministic batch top-K implemented |
 | Client integration | Tested OpenCode v2 skill and configuration | Planned |
 

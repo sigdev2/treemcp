@@ -46,9 +46,10 @@ content. Unknown tools and malformed calls return protocol errors. Arguments
 that violate a known tool's input schema produce a tool result with `isError`.
 [Official tool contract](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)
 
-Batch calls execute asynchronously. A cancellation notification with the active
-batch request ID stops its workers and suppresses the reply. EOF also stops and
-joins an active batch. Other tools still execute synchronously. Client-specific compatibility requires a
+Search calls execute asynchronously. A cancellation notification with an active
+request ID removes queued work and signals its workers. The server suppresses
+the response when cancellation arrives before publication. EOF cancels
+unfinished work and joins workers. Client-specific compatibility requires a
 separate test against the named client and version.
 [Cancellation](https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/cancellation)
 

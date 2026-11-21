@@ -10,7 +10,7 @@ struct Workspace;
 namespace treemcp::StdioServer {
 
 /** @brief Run the main event loop until stdin closes or a transport operation fails. */
-int run(QCoreApplication& application, const Workspace& workspace, int batchWorkers);
+int run(QCoreApplication& application, const Workspace& workspace, int workers);
 
 } // namespace treemcp::StdioServer
 

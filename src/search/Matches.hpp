@@ -5,20 +5,12 @@
 
 #include <QJsonObject>
 
-#include <atomic>
-#include <chrono>
 #include <functional>
 #include <vector>
 
 namespace treemcp {
 
-struct SearchStop {
-    const std::atomic_bool& cancelled;
-    std::chrono::steady_clock::time_point deadline;
-    bool requested() const;
-};
-
-Tree parseTree(const QByteArray& source, const TSLanguage* language, const SearchStop* stop = nullptr);
+Tree parseTree(const QByteArray& source, const TSLanguage* language, const SearchStop& stop);
 
 struct MatchCapture {
     QByteArrayView name;
@@ -54,7 +46,7 @@ QString visitMatches(
     const CompiledQuery& compiled,
     const std::function<bool(const TSQueryMatch&)>& visit,
     bool& incomplete,
-    const SearchStop* stop = nullptr);
+    const SearchStop& stop);
 
 } // namespace treemcp
 #endif // TREEMCP_MATCHES_HPP

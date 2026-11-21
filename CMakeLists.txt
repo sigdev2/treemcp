@@ -35,6 +35,7 @@ add_library(treemcp_core STATIC
     src/languages/LanguageRegistry.cpp
     src/mcp/Framer.cpp
     src/mcp/JsonRpc.cpp
+    src/scheduler/Scheduler.cpp
     src/mcp/Session.cpp
     src/mcp/StdioServer.cpp
     src/mcp/Tools.cpp
@@ -53,7 +54,7 @@ if(WIN32)
 else()
     target_sources(treemcp_core PRIVATE src/workspace/WorkspacePosix.cpp)
 endif()
-target_include_directories(treemcp_core PUBLIC src/app src/languages src/mcp src/search src/workspace "${PROJECT_BINARY_DIR}/generated")
+target_include_directories(treemcp_core PUBLIC src/app src/languages src/mcp src/search src/scheduler src/workspace "${PROJECT_BINARY_DIR}/generated")
 target_link_libraries(treemcp_core PUBLIC Qt6::Core tree_sitter tree_sitter_cpp tree_sitter_python)
 target_link_libraries(treemcp_core PRIVATE yyjson Threads::Threads)
 treemcp_set_warnings(treemcp_core)

@@ -13,6 +13,13 @@ Every build helper runs CTest after compilation. Current checks are:
 - `protocol.stdio` launches the real executable, negotiates the revision, validates
   the catalog and call results, pipelines 1,000 requests with mixed ID types,
   checks error recovery and closes stdin with replies still to read.
+- `scheduler.workers` parks workers to check FIFO order and alternation when both
+  queues have work. It checks that one batch can fill the pool and that further
+  file submission expires while all slots are occupied.
+- `scheduler.stdio` fills the request and cost budgets independently, checks
+  overload recovery, expires queued and running calls, races cancellation with
+  completion, and closes stdin with single and batch work pending. Its shutdown
+  grace interval is five seconds.
 - Configure-time SHA-256 verification of the complete vendored source subset.
 - `search.stdio` calls all three single-file tools over the wire. It covers C++
   and Python queries, UTF-8 offsets and columns, predicate diagnostics, syntax
@@ -52,6 +59,14 @@ a hardware/software manifest. Compare sequential searches, concurrent searches a
 one batch using equivalent queries and limits. Report OS cache conditions separately
 from process warmup; no application content cache is allowed.
 
+## Concurrency verification
+
+On 2026-11-21, CTest passed 11/11 in both Windows/MinGW Debug and Release,
+13/13 in both Linux/WSL Debug and Release, and 14/14 with Linux ASan/UBSan.
+Both scheduler tests also passed 20 consecutive runs on Linux Release. The
+Windows Release server passed the tool and schema checks with MCP Python SDK
+1.26.0.
+
 ## Batch search verification
 
 On 2026-11-20, CTest passed 8/8 on Windows/MinGW Debug and Release, 10/10 on
@@ -68,7 +83,8 @@ tools with MCP Python SDK 1.26.0.
   16 queries over 1,000 files and two over 10,000 files. The corpus has a known
   distinct capture for every query.
 - On Linux, `batch.shared-work` interposes native reads, Tree-sitter parses and
-  tree deletion. It verifies three reads and three parses for 16 queries over
+  tree deletion. It verifies that the same worker reads, parses and releases each
+  fixture, and checks three reads and three parses for 16 queries over
   three files, fresh work on the next call, zero live trees on return, and zero
   additional reads or parses for invalid selectors and duplicate item IDs.
 

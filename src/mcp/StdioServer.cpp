@@ -52,7 +52,7 @@ bool writeReply(const QJsonObject& reply)
 
 } // namespace
 
-int run(QCoreApplication& application, const Workspace& workspace, int batchWorkers)
+int run(QCoreApplication& application, const Workspace& workspace, int workers)
 {
 #ifdef Q_OS_WIN
     if (_setmode(_fileno(stdout), _O_BINARY) < 0) {
@@ -63,7 +63,7 @@ int run(QCoreApplication& application, const Workspace& workspace, int batchWork
     std::signal(SIGPIPE, SIG_IGN);
 #endif
     bool outputOk = true;
-    Session session(workspace, batchWorkers, [&](const QJsonObject& reply) { outputOk = writeReply(reply); });
+    Session session(workspace, workers, [&](const QJsonObject& reply) { outputOk = outputOk && writeReply(reply); });
     Framer framer;
     const Framer::Receiver receive = [&session, &outputOk](QByteArrayView frame) {
         const auto reply = session.handle(frame);
@@ -85,7 +85,7 @@ int run(QCoreApplication& application, const Workspace& workspace, int batchWork
                 &application,
                 [&buffer, count, &framer, &receive, &ok, &session]() {
                     if (count == 0) {
-                        session.stopBatch();
+                        session.shutdown();
                         ok = framer.finish(receive);
                     } else {
                         ok = framer.feed({ buffer.data(), count }, receive);
@@ -96,7 +96,7 @@ int run(QCoreApplication& application, const Workspace& workspace, int batchWork
         QMetaObject::invokeMethod(
             &application,
             [ok, &session, &outputOk]() {
-                session.stopBatch();
+                session.shutdown();
                 if (!ok || !outputOk) {
                     std::fputs("MCP stdio operation failed.\n", stderr);
                 }

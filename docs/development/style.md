@@ -25,8 +25,7 @@ as supplied and can be revised when newer syntax requires a formatting policy.
 
 Apply examples from the guide to the `treemcp` namespace and `TREEMCP_` header guards.
 Project requirements constrain its general concurrency advice: Qt Core is the only
-Qt runtime module, and the future scheduler must have bounded admission and explicit
-fairness. Do not add QtConcurrent or use the QThreadPool queue as that scheduler.
+Qt runtime module, and the scheduler uses bounded admission and explicit fairness. Do not add QtConcurrent or use the QThreadPool queue as that scheduler.
 
 Write documentation, comments, errors and diagnostic messages in English. Keep
 architectural explanations in [internals](../internals/README.md), and use comments

@@ -34,6 +34,9 @@ these are development operations, separate from server runtime behavior.
 | Batch results | 200 | 10,000 |
 | Batch response | 8 MiB | 64 MiB |
 
+The active worker count is capped at eight. The [request lifecycle](lifecycle.md)
+describes the enforced request and cost budgets.
+
 This table describes target budgets for the full service. These are design budgets, not measured performance guarantees. Validate input
 before enqueue and enforce resource limits during execution and serialization,
 including both structured and text representations of the same response.

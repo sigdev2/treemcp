@@ -1,7 +1,8 @@
 #include "Session.hpp"
 
-#include "BatchSearch.hpp"
 #include "Tools.hpp"
+
+#include <QJsonArray>
 
 #include "treemcp/Version.hpp"
 
@@ -12,24 +13,184 @@ constexpr qsizetype MAX_SESSION_REQUESTS = 16384;
 
 } // namespace
 
-Session::~Session()
+Session::Session(const Workspace& searchWorkspace, int workers, ReplyWriter writer) :
+        workspace(searchWorkspace),
+        maxRequests(std::max(32, 4 * workers) + workers),
+        publish(std::move(writer)),
+        scheduler(workers)
 {
-    stopBatch();
+    deadlines.setSingleShot(true);
+    deadlines.setTimerType(Qt::PreciseTimer);
+    connect(&deadlines, &QTimer::timeout, this, &Session::expire);
 }
 
-void Session::stopBatch()
+Session::~Session()
 {
-    cancelled.store(true);
-    if (worker.joinable()) {
-        worker.join();
+    shutdown();
+}
+
+void Session::shutdown()
+{
+    if (closed) {
+        return;
     }
+    closed = true;
+    deadlines.stop();
+    {
+        std::lock_guard lock(completionMutex);
+        for (const auto& work : std::as_const(active)) {
+            if (!work->reply) {
+                work->cancelled.store(true);
+            }
+        }
+    }
+    for (auto it = active.cbegin(); it != active.cend(); ++it) {
+        scheduler.remove(it.key());
+    }
+    scheduler.cancelFiles();
+    if (coordinator.joinable()) {
+        coordinator.join();
+    }
+    scheduler.shutdown();
+    for (const auto& id : active.keys()) {
+        complete(id);
+    }
+}
+
+void Session::forget(const QJsonValue& id)
+{
+    if (const auto work = active.take(id)) {
+        admittedCost -= work->cost;
+    }
+    if (active.isEmpty()) {
+        deadlines.stop();
+    }
+}
+
+void Session::cancel(const QJsonValue& id)
+{
+    const auto work = active.value(id);
+    if (!work) {
+        return;
+    }
+    work->cancelled.store(true);
+    if (work->batch) {
+        scheduler.cancelFiles();
+    } else if (scheduler.remove(id)) {
+        forget(id);
+    }
+}
+
+void Session::complete(const QJsonValue& id)
+{
+    const auto work = active.value(id);
+    if (!work) {
+        return;
+    }
+    std::optional<QJsonObject> reply;
+    {
+        std::lock_guard lock(completionMutex);
+        reply = std::move(work->reply);
+    }
+    if (work->batch && coordinator.joinable()) {
+        coordinator.join();
+    }
+    forget(id);
+    if (!work->cancelled.load() && reply) {
+        publish(Clock::now() >= work->deadline ? Tools::deadlineReply(id, *reply) : *reply);
+    }
+}
+
+void Session::expire()
+{
+    const auto now = Clock::now();
+    auto next = Clock::time_point::max();
+    for (const auto& id : active.keys()) {
+        const auto work = active.value(id);
+        if (work->cancelled.load()) {
+            continue;
+        }
+        if (now < work->deadline) {
+            next = std::min(next, work->deadline);
+            continue;
+        }
+        if (work->batch) {
+            scheduler.cancelFiles();
+        } else if (scheduler.remove(id)) {
+            forget(id);
+            publish(Tools::deadlineReply(id));
+        }
+    }
+    if (next != Clock::time_point::max()) {
+        deadlines.start(std::chrono::ceil<std::chrono::milliseconds>(next - now));
+    }
+}
+
+std::optional<QJsonObject> Session::schedule(
+    const QJsonValue& id,
+    const QString& name,
+    const QJsonObject& args,
+    Clock::time_point received,
+    qsizetype frameBytes)
+{
+    const bool batch = name == "batch_search";
+    const auto deadline = received + std::chrono::milliseconds(args.value("deadlineMs").toInt());
+    if (!batch && Clock::now() >= deadline) {
+        return Tools::deadlineReply(id);
+    }
+    // Charge retained input, recursive scope and batch fan-out before capturing the request.
+    const int cost = 1 + static_cast<int>(frameBytes / 65536) + (args.contains("paths") ? 3 : 0) +
+        static_cast<int>(args.value("queries").toArray().size());
+    if (closed || active.size() >= maxRequests || cost + admittedCost > 4 * maxRequests ||
+        (batch && coordinator.joinable()))
+    {
+        return JsonRpc::error(id, -32001, QStringLiteral("Search scheduler at capacity"));
+    }
+    auto work = std::make_shared<Work>();
+    work->deadline = deadline;
+    work->batch = batch;
+    work->cost = cost;
+    if (!publish) {
+        return Tools::execute(id, name, args, workspace, { work->cancelled, deadline }, scheduler);
+    }
+    active.insert(id, work);
+    admittedCost += cost;
+    const auto remaining = std::max(
+        std::chrono::milliseconds::zero(),
+        std::chrono::ceil<std::chrono::milliseconds>(deadline - Clock::now()));
+    if (!deadlines.isActive() || remaining < std::chrono::milliseconds(deadlines.remainingTime())) {
+        deadlines.start(remaining);
+    }
+    auto run = [this, id, name, args, work] {
+        auto reply = Tools::execute(id, name, args, workspace, { work->cancelled, work->deadline }, scheduler);
+        {
+            std::lock_guard lock(completionMutex);
+            work->reply = std::move(reply);
+        }
+        QMetaObject::invokeMethod(
+            this,
+            [this, id] { complete(id); },
+            Qt::QueuedConnection);
+    };
+    if (batch) {
+        try {
+            coordinator = std::thread(std::move(run));
+        } catch (const std::system_error&) {
+            forget(id);
+            return JsonRpc::error(id, -32001, QStringLiteral("Batch coordinator unavailable"));
+        }
+    } else {
+        scheduler.submit(id, std::move(run));
+    }
+    return std::nullopt;
 }
 
 std::optional<QJsonObject> Session::handle(QByteArrayView frame)
 {
+    const auto received = Clock::now();
     const auto decoded = JsonRpc::decode(frame);
     if (const auto* request = std::get_if<JsonRpc::Request>(&decoded)) {
-        return dispatch(*request);
+        return dispatch(*request, received, frame.size());
     }
     if (const auto* reply = std::get_if<QJsonObject>(&decoded)) {
         return *reply;
@@ -37,7 +198,8 @@ std::optional<QJsonObject> Session::handle(QByteArrayView frame)
     return std::nullopt;
 }
 
-std::optional<QJsonObject> Session::dispatch(const JsonRpc::Request& request)
+std::optional<QJsonObject>
+    Session::dispatch(const JsonRpc::Request& request, Clock::time_point received, qsizetype frameBytes)
 {
     const QJsonValue& id = request.id;
     const QJsonObject params = request.params.toObject();
@@ -47,10 +209,8 @@ std::optional<QJsonObject> Session::dispatch(const JsonRpc::Request& request)
         if (validParams && request.method == "notifications/initialized" && phase == Phase::AwaitInitialized) {
             phase = Phase::Ready;
         }
-        if (validParams && request.method == "notifications/cancelled" && !batchId.isUndefined() &&
-            params.value("requestId") == batchId)
-        {
-            cancelled.store(true);
+        if (validParams && request.method == "notifications/cancelled") {
+            cancel(params.value("requestId"));
         }
         return std::nullopt;
     }
@@ -78,32 +238,8 @@ std::optional<QJsonObject> Session::dispatch(const JsonRpc::Request& request)
         return Tools::list(id, params);
     }
     if (request.method == "tools/call") {
-        const auto received = std::chrono::steady_clock::now();
-        return Tools::call(id, params, workspace, [&](const QJsonObject& arguments) -> std::optional<QJsonObject> {
-            if (!publish) {
-                return Tools::batchReply(id, arguments, workspace, { cancelled, workerCount, received });
-            }
-            if (worker.joinable()) {
-                return JsonRpc::error(id, -32001, QStringLiteral("Batch search already active"));
-            }
-            batchId = id;
-            cancelled.store(false);
-            worker = std::thread([this, id, arguments, received]() {
-                const auto reply = Tools::batchReply(id, arguments, workspace, { cancelled, workerCount, received });
-                QMetaObject::invokeMethod(
-                    this,
-                    [this, reply]() {
-                        if (worker.joinable()) {
-                            worker.join();
-                        }
-                        batchId = QJsonValue::Undefined;
-                        if (!cancelled.load()) {
-                            publish(reply);
-                        }
-                    },
-                    Qt::QueuedConnection);
-            });
-            return std::nullopt;
+        return Tools::call(id, params, [&](const QString& name, const QJsonObject& args) {
+            return schedule(id, name, args, received, frameBytes);
         });
     }
     return JsonRpc::error(id, -32601, QStringLiteral("Method not found"));

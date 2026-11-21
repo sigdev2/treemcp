@@ -6,11 +6,9 @@
 #include "Workspace.hpp"
 #include "WorkspaceFilter.hpp"
 
+#include "Scheduler.hpp"
 #include <QJsonArray>
 #include <QJsonDocument>
-#include <QScopeGuard>
-#include <QSemaphore>
-#include <QThreadPool>
 
 #include <algorithm>
 #include <map>
@@ -136,7 +134,7 @@ struct Batch {
             {
                 continue;
             }
-            const Tree tree = parseTree(source, grammar->language, &stop);
+            const Tree tree = parseTree(source, grammar->language, stop);
             if (!tree) {
                 if (!stop.requested()) {
                     std::lock_guard lock(mutex);
@@ -172,7 +170,7 @@ struct Batch {
                         return true;
                     },
                     incomplete,
-                    &stop);
+                    stop);
                 std::lock_guard lock(mutex);
                 ++executions;
                 item->syntaxErrors |= ts_node_has_error(root);
@@ -217,14 +215,16 @@ struct Batch {
 
     QJsonObject finish(const QJsonValue& id, int byteLimit)
     {
+        // A traversal timeout can leave useful hits. Give their bounded prefix a short
+        // finalization window. Explicit cancellation still takes effect between entries.
+        const auto now = std::chrono::steady_clock::now();
+        const SearchStop outputStop { stop.cancelled,
+                                      now >= stop.deadline ? now + std::chrono::milliseconds(5) : stop.deadline };
         QJsonObject data = metadata();
         // Charge the empty envelope (including LF), then each entry in both structured and escaped text content.
         qsizetype remaining =
             byteLimit - QJsonDocument(Tools::dataReply(id, data)).toJson(QJsonDocument::Compact).size() - 1;
         QJsonArray entries = data.value("items").toArray();
-        // A traversal deadline leaves a bounded prefix ready to publish. If output itself
-        // crosses the deadline, finish with the entries already serialized.
-        const bool expiredBeforeOutput = stop.requested();
         bool full = false;
         bool truncated = false;
         bool incomplete = false;
@@ -232,7 +232,8 @@ struct Batch {
             auto& item = items[static_cast<size_t>(i)];
             QJsonArray matches;
             for (const auto& match : item.best) {
-                if (stop.cancelled.load(std::memory_order_relaxed) || (!expiredBeforeOutput && stop.requested())) {
+                if (outputStop.requested()) {
+                    item.truncated = true;
                     break;
                 }
                 if (!full) {
@@ -320,13 +321,11 @@ SingleFile::Result batchSearch(
     const QJsonValue& id,
     const QJsonObject& arguments,
     const Workspace& workspace,
-    const BatchControl& control)
+    const SearchStop& stop,
+    Scheduler& scheduler)
 {
     const auto queries = arguments.value("queries").toArray();
-    Batch batch(
-        static_cast<size_t>(queries.size()),
-        arguments.value("maxTotalMatches").toInt(),
-        { control.cancelled, control.received + std::chrono::milliseconds(arguments.value("deadlineMs").toInt()) });
+    Batch batch(static_cast<size_t>(queries.size()), arguments.value("maxTotalMatches").toInt(), stop);
     FileScope scope { strings(arguments.value("paths")),
                       strings(arguments.value("include")),
                       strings(arguments.value("exclude")),
@@ -350,27 +349,32 @@ SingleFile::Result batchSearch(
         item.incomplete = !item.error.isEmpty() || batch.stop.requested();
     }
     scope.extensions.removeDuplicates();
-    QThreadPool pool;
-    pool.setMaxThreadCount(control.workers);
-    QSemaphore capacity(control.workers);
     const ScanOptions limits { arguments.value("maxFiles").toInt(),
-                               [&]() { return scope.extensions.isEmpty() || batch.stop.requested(); },
-                               &batch.visited,
-                               &batch.read };
+                               [&]() { return scope.extensions.isEmpty() || stop.requested(); },
+                               &batch.visited };
     const auto error = scanWorkspace(
         workspace,
         scope,
-        [&](const QString& path, const QByteArray& source) {
-            capacity.acquire();
-            if (batch.stop.requested()) {
-                capacity.release();
-                return false;
-            }
-            pool.start([&batch, &capacity, path, source]() {
-                const auto release = qScopeGuard([&capacity]() { capacity.release(); });
-                batch.searchFile(path, source);
+        [&](const QString& path, SelectedFile selected) {
+            auto file = std::make_shared<SelectedFile>(std::move(selected));
+            return scheduler.submitFile(stop, [&batch, &stop, path, file = std::move(file)] {
+                if (stop.requested()) {
+                    return;
+                }
+                const auto read = file->read([&] { return stop.requested(); });
+                {
+                    std::lock_guard lock(batch.mutex);
+                    if (const auto* problem = std::get_if<QString>(&read)) {
+                        batch.scopeIncomplete = true;
+                        batch.diagnostic(path, *problem);
+                        return;
+                    }
+                    ++batch.read;
+                }
+                if (const auto* source = std::get_if<QByteArray>(&read)) {
+                    batch.searchFile(path, *source);
+                }
             });
-            return true;
         },
         [&](const QString& path, const QString& message) {
             std::lock_guard lock(batch.mutex);
@@ -378,7 +382,13 @@ SingleFile::Result batchSearch(
             batch.diagnostic(path, message);
         },
         limits);
-    pool.waitForDone();
+    if (stop.requested()) {
+        scheduler.cancelFiles();
+    }
+    scheduler.joinFiles();
+    if (stop.cancelled.load()) {
+        return QStringLiteral("Batch cancelled");
+    }
     if (!error.isEmpty()) {
         return error;
     }

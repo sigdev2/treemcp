@@ -8,6 +8,7 @@
 | `src/app/` | In-memory dependency self-check |
 | `src/languages/` | Immutable compiled language metadata |
 | `src/mcp/` | Bounded stdio transport, JSON-RPC decoder, session and tools |
+| `src/scheduler/` | Shared worker pool and fair dispatch of searches and batch files |
 | `src/search/` | Parsing, tree inspection, predicates and bounded single and batch search |
 | `src/workspace/` | Handle-relative reads, directory traversal and filters |
 | `schemas/` | Tool descriptors embedded in the executable |
@@ -18,8 +19,7 @@
 | `docs/` | Hierarchical English documentation |
 | `.local/`, `build/`, `install/` | Ignored machine settings and local artifacts |
 
-Add `src/scheduler` and `src/util` as
-their implementations arrive. Future public headers belong in `include/treemcp`;
+Future public headers belong in `include/treemcp`;
 there is no public SDK yet.
 Integration assets will live in `integrations/opencode-v2/`.
 

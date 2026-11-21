@@ -69,12 +69,12 @@ Version 0.1.0 is the bootstrap; 1.0.0 requires all release gates below.
 
 ## 5. Concurrency, cancellation and deadlines
 
-- [ ] Implement a bounded scheduler with cost admission, overload errors and fair worker allocation.
-- [ ] Run one batch across available workers without unbounded child work queues or starvation.
-- [ ] Confine parsers, trees, cursors and source buffers to their owning workers.
-- [ ] Add monotonic deadlines and cooperative cancellation throughout traversal/parse/query/output.
-- [ ] Cancel all batch children and join them before cleanup; suppress cancelled responses.
-- [ ] Test shutdown grace periods, saturation, cancellation races and fairness.
+- [x] Implement a bounded scheduler with cost admission, overload errors and fair worker allocation.
+- [x] Run one batch across available workers without unbounded child work queues or starvation.
+- [x] Confine parsers, trees, cursors and source buffers to their owning workers.
+- [x] Add monotonic deadlines and cooperative cancellation throughout traversal/parse/query/output.
+- [x] Cancel all batch children and join them before cleanup; suppress cancelled responses.
+- [x] Test shutdown grace periods, saturation, cancellation races and fairness.
 
 ## 6. Languages and integrations
 

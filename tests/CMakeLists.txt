@@ -14,7 +14,12 @@ add_test(NAME protocol.stdio COMMAND check-protocol "$<TARGET_FILE:structural-mc
     "${PROJECT_SOURCE_DIR}/schemas")
 add_test(NAME search.stdio COMMAND check-protocol "$<TARGET_FILE:structural-mcp>" --search)
 
-set(protocol_tests bootstrap.runtime bootstrap.cli protocol.decoder protocol.stdio search.stdio)
+add_executable(check-scheduler CheckScheduler.cpp)
+target_link_libraries(check-scheduler PRIVATE treemcp_core)
+treemcp_set_warnings(check-scheduler)
+add_test(NAME scheduler.workers COMMAND check-scheduler)
+
+set(protocol_tests scheduler.workers bootstrap.runtime bootstrap.cli protocol.decoder protocol.stdio search.stdio)
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
     add_test(NAME search.queries COMMAND "${Python3_EXECUTABLE}"
@@ -25,7 +30,9 @@ if(Python3_Interpreter_FOUND)
         add_test(NAME batch.${suite} COMMAND "${Python3_EXECUTABLE}"
             -B "${CMAKE_CURRENT_SOURCE_DIR}/check_batch.py" "$<TARGET_FILE:structural-mcp>" "${suite}")
     endforeach()
-    list(APPEND protocol_tests search.queries workspace.stdio batch.correctness batch.corpus)
+    add_test(NAME scheduler.stdio COMMAND "${Python3_EXECUTABLE}"
+        -B "${CMAKE_CURRENT_SOURCE_DIR}/check_concurrency.py" "$<TARGET_FILE:structural-mcp>")
+    list(APPEND protocol_tests scheduler.stdio search.queries workspace.stdio batch.correctness batch.corpus)
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")

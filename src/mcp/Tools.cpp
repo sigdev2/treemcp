@@ -162,21 +162,59 @@ QJsonObject list(const QJsonValue& id, const QJsonObject& params)
     return JsonRpc::success(id, { { "tools", catalog() } });
 }
 
-QJsonObject batchReply(
+QJsonObject deadlineReply(const QJsonValue& id, const QJsonObject& reply)
+{
+    auto data = reply.value("result").toObject().value("structuredContent").toObject();
+    if (!data.contains("items")) {
+        return toolError(id, QStringLiteral("Request deadline exceeded"));
+    }
+    if (data.value("deadlineExceeded").toBool()) {
+        return reply;
+    }
+    auto items = data.value("items").toArray();
+    for (qsizetype i = 0; i < items.size(); ++i) {
+        auto item = items.at(i).toObject();
+        item.insert("incomplete", true);
+        items[i] = item;
+    }
+    data.insert("items", items);
+    data.insert("deadlineExceeded", true);
+    data.insert("incomplete", true);
+    return dataReply(id, data);
+}
+
+QJsonObject execute(
     const QJsonValue& id,
+    const QString& name,
     const QJsonObject& arguments,
     const Workspace& workspace,
-    const BatchControl& control)
+    const SearchStop& stop,
+    Scheduler& scheduler)
 {
-    const auto result = batchSearch(id, arguments, workspace, control);
+    const bool batch = name == "batch_search";
+    if (!batch && stop.requested()) {
+        return deadlineReply(id);
+    }
+    const auto result = batch ? batchSearch(id, arguments, workspace, stop, scheduler)
+                              : SingleFile::run(name, arguments, workspace, stop);
+    if (stop.cancelled.load()) {
+        return {};
+    }
+    if (!batch && stop.requested()) {
+        return deadlineReply(id);
+    }
     if (const auto* failure = std::get_if<QString>(&result)) {
         return toolError(id, *failure);
     }
-    return dataReply(id, std::get<QJsonObject>(result));
+    const auto reply = dataReply(id, std::get<QJsonObject>(result));
+    constexpr qsizetype MAX_RESPONSE_BYTES = 1024 * 1024;
+    if (!batch && QJsonDocument(reply).toJson(QJsonDocument::Compact).size() + 1 > MAX_RESPONSE_BYTES) {
+        return toolError(id, QStringLiteral("Response exceeds byte limit"));
+    }
+    return reply;
 }
 
-std::optional<QJsonObject>
-    call(const QJsonValue& id, const QJsonObject& params, const Workspace& workspace, const BatchRunner& runBatch)
+std::optional<QJsonObject> call(const QJsonValue& id, const QJsonObject& params, const Runner& run)
 {
     const QJsonValue name = params.value("name");
     const QJsonValue arguments = params.value("arguments");
@@ -201,20 +239,11 @@ std::optional<QJsonObject>
             if (!problem.isEmpty()) {
                 return toolError(id, problem);
             }
-            return runBatch(args);
         }
-        const SingleFile::Result result =
-            name == "languages" ? languageList() : SingleFile::run(name.toString(), args, workspace);
-        if (const auto* failure = std::get_if<QString>(&result)) {
-            return toolError(id, *failure);
+        if (name == "languages") {
+            return dataReply(id, languageList());
         }
-        const QJsonObject data = std::get<QJsonObject>(result);
-        const QJsonObject reply = dataReply(id, data);
-        constexpr qsizetype MAX_RESPONSE_BYTES = 1024 * 1024;
-        if (QJsonDocument(reply).toJson(QJsonDocument::Compact).size() + 1 > MAX_RESPONSE_BYTES) {
-            return toolError(id, QStringLiteral("Response exceeds byte limit"));
-        }
-        return reply;
+        return run(name.toString(), args);
     }
     return JsonRpc::error(id, -32602, QStringLiteral("Unknown tool"));
 }

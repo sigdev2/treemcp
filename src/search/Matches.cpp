@@ -23,38 +23,34 @@ QJsonObject nodeRange(TSNode node)
     return range(ts_node_start_byte(node), ts_node_end_byte(node), ts_node_start_point(node), ts_node_end_point(node));
 }
 
-bool SearchStop::requested() const
-{
-    return cancelled.load(std::memory_order_relaxed) || std::chrono::steady_clock::now() >= deadline;
-}
-
-Tree parseTree(const QByteArray& source, const TSLanguage* language, const SearchStop* stop)
+Tree parseTree(const QByteArray& source, const TSLanguage* language, const SearchStop& stop)
 {
     const Parser parser { ts_parser_new(), ts_parser_delete };
     Tree tree { nullptr, ts_tree_delete };
     if (!parser || !ts_parser_set_language(parser.get(), language)) {
         return tree;
     }
-    QByteArrayView bytes(source);
-    const TSInput input { &bytes,
+    struct Input {
+        QByteArrayView bytes;
+        const SearchStop& stop;
+    } state { source, stop };
+    const TSInput input { &state,
                           [](void* payload, uint32_t offset, TSPoint, uint32_t* count) -> const char* {
-                              const auto view = *static_cast<QByteArrayView*>(payload);
-                              if (offset >= view.size()) {
+                              const auto& data = *static_cast<const Input*>(payload);
+                              const auto view = data.bytes;
+                              if (offset >= view.size() || data.stop.requested()) {
                                   *count = 0;
                                   return nullptr;
                               }
-                              *count = static_cast<uint32_t>(view.size() - offset);
+                              *count = static_cast<uint32_t>(std::min<qsizetype>(65536, view.size() - offset));
                               return view.data() + offset;
                           },
                           TSInputEncodingUTF8,
                           nullptr };
-    const TSParseOptions options { &stop, [](TSParseState* state) {
-                                      const auto* observer = *static_cast<const SearchStop**>(state->payload);
-                                      return observer && observer->requested();
+    const TSParseOptions options { &state, [](TSParseState* progress) {
+                                      return static_cast<const Input*>(progress->payload)->stop.requested();
                                   } };
-    tree.reset(
-        stop ? ts_parser_parse_with_options(parser.get(), nullptr, input, options)
-             : ts_parser_parse(parser.get(), nullptr, input));
+    tree.reset(ts_parser_parse_with_options(parser.get(), nullptr, input, options));
     return tree;
 }
 
@@ -126,7 +122,7 @@ QString visitMatches(
     const CompiledQuery& compiled,
     const std::function<bool(const TSQueryMatch&)>& visit,
     bool& incomplete,
-    const SearchStop* stop)
+    const SearchStop& stop)
 {
     // The pinned runtime records up to three captures per visited node, but the C API
     // exposes only a 16-bit capture count. Guard repeated captures before it can wrap.
@@ -134,7 +130,7 @@ QString visitMatches(
     if (ts_node_descendant_count(root) > MAX_REPEAT_TREE_NODES) {
         const TSQuery* query = compiled.query.get();
         for (uint32_t pattern = 0; pattern < ts_query_pattern_count(query); ++pattern) {
-            if (stop && stop->requested()) {
+            if (stop.requested()) {
                 incomplete = true;
                 return {};
             }
@@ -151,23 +147,20 @@ QString visitMatches(
         return QStringLiteral("Cannot allocate query cursor");
     }
     ts_query_cursor_set_match_limit(cursor.get(), 256);
-    TSQueryCursorOptions options { nullptr, [](TSQueryCursorState* state) {
-                                      return (*static_cast<const SearchStop**>(state->payload))->requested();
-                                  } };
-    if (stop) {
-        options.payload = &stop;
-        ts_query_cursor_exec_with_options(cursor.get(), compiled.query.get(), root, &options);
-    } else {
-        ts_query_cursor_exec(cursor.get(), compiled.query.get(), root);
-    }
+    const SearchStop* observer = &stop;
+    const TSQueryCursorOptions options {
+        &observer,
+        [](TSQueryCursorState* state) { return (*static_cast<const SearchStop* const*>(state->payload))->requested(); }
+    };
+    ts_query_cursor_exec_with_options(cursor.get(), compiled.query.get(), root, &options);
     TSQueryMatch match {};
     while (ts_query_cursor_next_match(cursor.get(), &match)) {
-        if (stop && stop->requested()) {
+        if (stop.requested()) {
             break;
         }
         const auto& predicates = compiled.predicates.at(match.pattern_index);
         if (!std::all_of(predicates.begin(), predicates.end(), [&](const Predicate& p) {
-                return p.accepts(match, source);
+                return !stop.requested() && p.accepts(match, source, stop);
             }))
         {
             continue;
@@ -176,7 +169,7 @@ QString visitMatches(
             break;
         }
     }
-    incomplete |= ts_query_cursor_did_exceed_match_limit(cursor.get()) || (stop && stop->requested());
+    incomplete |= ts_query_cursor_did_exceed_match_limit(cursor.get()) || stop.requested();
     return {};
 }
 

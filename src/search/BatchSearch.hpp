@@ -3,23 +3,19 @@
 
 #include "SingleFile.hpp"
 
-#include <atomic>
-#include <chrono>
+#include "SearchStop.hpp"
 
 namespace treemcp {
 
-struct BatchControl {
-    const std::atomic_bool& cancelled;
-    int workers;
-    std::chrono::steady_clock::time_point received;
-};
+class Scheduler;
 
 QString validateBatch(const QJsonObject& arguments);
 SingleFile::Result batchSearch(
     const QJsonValue& id,
     const QJsonObject& arguments,
     const Workspace& workspace,
-    const BatchControl& control);
+    const SearchStop& stop,
+    Scheduler& scheduler);
 
 } // namespace treemcp
 #endif // TREEMCP_BATCHSEARCH_HPP

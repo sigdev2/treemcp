@@ -27,7 +27,7 @@ bool appendEntry(QJsonArray& entries, const QJsonObject& entry, qsizetype& remai
     return true;
 }
 
-QJsonObject dumpTree(TSNode root, int maxDepth, int maxNodes)
+QJsonObject dumpTree(TSNode root, int maxDepth, int maxNodes, const SearchStop& stop)
 {
     TSTreeCursor cursor = ts_tree_cursor_new(root);
     const auto guard = qScopeGuard([&cursor]() { ts_tree_cursor_delete(&cursor); });
@@ -35,7 +35,7 @@ QJsonObject dumpTree(TSNode root, int maxDepth, int maxNodes)
     qsizetype remaining = ENTRY_BUDGET;
     bool truncated = false;
     int depth = 0;
-    for (;;) {
+    while (!stop.requested()) {
         const TSNode node = ts_tree_cursor_current_node(&cursor);
         const QJsonObject entry { { "type", QString::fromUtf8(ts_node_type(node)) },
                                   { "range", nodeRange(node) },
@@ -88,15 +88,16 @@ Result parseSource(
     const QJsonObject& arguments,
     bool treeMode,
     const QString& path,
-    SearchResults& results)
+    SearchResults& results,
+    const SearchStop& stop)
 {
-    const Tree tree = parseTree(source, language);
+    const Tree tree = parseTree(source, language, stop);
     if (!tree) {
         return QStringLiteral("Cannot parse source");
     }
     const TSNode root = ts_tree_root_node(tree.get());
     if (treeMode) {
-        return dumpTree(root, arguments.value("maxDepth").toInt(), arguments.value("maxNodes").toInt());
+        return dumpTree(root, arguments.value("maxDepth").toInt(), arguments.value("maxNodes").toInt(), stop);
     }
     results.syntaxErrors |= ts_node_has_error(root);
     const int maxMatches = arguments.value("maxMatches").toInt();
@@ -115,7 +116,8 @@ Result parseSource(
             results.full = results.truncated = true;
             return false;
         },
-        results.incomplete);
+        results.incomplete,
+        stop);
     if (!error.isEmpty()) {
         return error;
     }
@@ -135,7 +137,8 @@ Result searchScope(
     const Workspace& workspace,
     const LanguageDefinition& grammar,
     const CompiledQuery& compiled,
-    const QJsonObject& arguments)
+    const QJsonObject& arguments,
+    const SearchStop& stop)
 {
     const FileScope scope { strings(arguments.value("paths")),
                             strings(arguments.value("include")),
@@ -156,14 +159,23 @@ Result searchScope(
     const QString error = scanWorkspace(
         workspace,
         scope,
-        [&](const QString& path, const QByteArray& source) {
-            const auto parsed = parseSource(source, grammar.language, compiled, arguments, false, path, results);
+        [&](const QString& path, SelectedFile file) {
+            const auto read = file.read([&] { return stop.requested(); });
+            if (const auto* errorMessage = std::get_if<QString>(&read)) {
+                report(path, *errorMessage);
+            }
+            const auto* source = std::get_if<QByteArray>(&read);
+            if (!source || stop.requested()) {
+                return !stop.requested();
+            }
+            const auto parsed = parseSource(*source, grammar.language, compiled, arguments, false, path, results, stop);
             if (const auto* failure = std::get_if<QString>(&parsed)) {
                 report(path, *failure);
             }
             return !results.full;
         },
-        report);
+        report,
+        { 10000, [&] { return stop.requested(); } });
     if (!error.isEmpty()) {
         return error;
     }
@@ -174,7 +186,7 @@ Result searchScope(
 
 } // namespace
 
-Result run(const QString& name, const QJsonObject& arguments, const Workspace& workspace)
+Result run(const QString& name, const QJsonObject& arguments, const Workspace& workspace, const SearchStop& stop)
 {
     const auto* grammar = LanguageRegistry::getLanguage(arguments.value("language").toString());
     if (!grammar) {
@@ -197,12 +209,15 @@ Result run(const QString& name, const QJsonObject& arguments, const Workspace& w
                                  { "patternCount", qint64 { ts_query_pattern_count(compiled.query.get()) } } };
         }
     }
+    if (stop.requested()) {
+        return QStringLiteral("Search interrupted");
+    }
     if (arguments.contains("paths")) {
-        return searchScope(workspace, *grammar, compiled, arguments);
+        return searchScope(workspace, *grammar, compiled, arguments, stop);
     }
     QByteArray source;
     if (arguments.contains("path")) {
-        auto read = readWorkspaceFile(workspace, arguments.value("path").toString());
+        auto read = readWorkspaceFile(workspace, arguments.value("path").toString(), [&] { return stop.requested(); });
         if (const auto* error = std::get_if<QString>(&read)) {
             return *error;
         }
@@ -218,7 +233,8 @@ Result run(const QString& name, const QJsonObject& arguments, const Workspace& w
         arguments,
         name == "syntax_tree",
         arguments.value("path").toString(),
-        results);
+        results,
+        stop);
     if (name == "syntax_tree" || std::holds_alternative<QString>(output)) {
         return output;
     }

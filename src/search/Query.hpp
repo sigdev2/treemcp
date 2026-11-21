@@ -1,6 +1,8 @@
 #ifndef TREEMCP_QUERY_HPP
 #define TREEMCP_QUERY_HPP
 
+#include "SearchStop.hpp"
+
 #include <QByteArrayView>
 #include <QList>
 #include <QSet>
@@ -28,7 +30,7 @@ struct Predicate {
     std::optional<uint32_t> otherCapture;
     QSet<QByteArrayView> literals;
 
-    bool accepts(const TSQueryMatch& match, QByteArrayView source) const;
+    bool accepts(const TSQueryMatch& match, QByteArrayView source, const SearchStop& stop) const;
 };
 
 struct CompiledQuery {

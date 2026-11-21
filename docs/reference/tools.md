@@ -14,6 +14,19 @@ its `name` and `arguments` to `tools/call`.
 
 Supply `cpp` or `python`. Inline source and workspace files are parsed afresh on each call.
 
+## Concurrent calls
+
+`query_validate`, `syntax_tree`, `structural_search` and `batch_search` accept
+`deadlineMs` from 1 to 300,000 milliseconds, with a default of 30,000. Time spent
+waiting for a worker counts toward the deadline. An expired single call returns a
+tool result with `isError` and the message `Request deadline exceeded`. A batch
+returns its partial result with `deadlineExceeded` and `incomplete`.
+
+Send `notifications/cancelled` with the original JSON-RPC ID in `params.requestId`
+to cancel a queued or running search. When cancellation wins the race with
+publication the server suppresses the reply. Overloaded calls receive JSON-RPC
+error `-32001`. Ping and discovery remain available when admission is full.
+
 ## Workspace files
 
 Start the server with `structural-mcp --workspace-root <directory>`. The default
@@ -191,8 +204,6 @@ text filter. `filesParsed` counts distinct files yielding a tree. `treeBuilds`
 counts successful file/grammar parses and `queryExecutions` counts item/file
 searches. Counts apply to this request only.
 
-Use the server option `--batch-workers 1` through `--batch-workers 8` to set file
-parallelism. The default uses the available CPU count capped at eight. One
-batch can run at a time per server. A small search or ping can run while the
-batch is active. Cancel by sending `notifications/cancelled` with the outer
-JSON-RPC request ID in `params.requestId`.
+Use `--workers 1` through `--workers 8` to set the shared search worker count.
+The default uses the available CPU count capped at eight. The server also accepts
+the existing spelling `--batch-workers`. One batch can run at a time per session.

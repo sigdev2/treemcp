@@ -44,8 +44,8 @@ int main(int argc, char* argv[])
     arguments.addOption(ignoreDirOption);
     const int defaultWorkers = std::clamp(QThread::idealThreadCount(), 1, 8);
     const QCommandLineOption workersOption(
-        QStringLiteral("batch-workers"),
-        QStringLiteral("Number of file workers per batch (1 to 8, default %1).").arg(defaultWorkers),
+        QStringList { QStringLiteral("workers"), QStringLiteral("batch-workers") },
+        QStringLiteral("Number of shared search workers (1 to 8, default %1).").arg(defaultWorkers),
         QStringLiteral("count"),
         QString::number(defaultWorkers));
     arguments.addOption(workersOption);
@@ -68,9 +68,9 @@ int main(int argc, char* argv[])
         return 2;
     }
     bool validWorkers = false;
-    const int batchWorkers = arguments.value(workersOption).toInt(&validWorkers);
-    if (!validWorkers || batchWorkers < 1 || batchWorkers > 8) {
-        diagnostics << "Expected --batch-workers between 1 and 8.\n";
+    const int workers = arguments.value(workersOption).toInt(&validWorkers);
+    if (!validWorkers || workers < 1 || workers > 8) {
+        diagnostics << "Expected --batch-workers or --workers between 1 and 8.\n";
         return 2;
     }
     const QStringList ignoredDirectories = arguments.values(ignoreDirOption);
@@ -81,11 +81,11 @@ int main(int argc, char* argv[])
     if (!arguments.isSet(selfCheckOption)) {
         const treemcp::Workspace workspace { treemcp::WorkspaceNode::openRoot(arguments.value(workspaceOption)),
                                              { ignoredDirectories.begin(), ignoredDirectories.end() } };
-        if (workspace.root.kind() != treemcp::NodeKind::Directory) {
+        if (workspace.root->kind() != treemcp::NodeKind::Directory) {
             diagnostics << "Cannot open workspace root directory.\n";
             return 2;
         }
-        return treemcp::StdioServer::run(application, workspace, batchWorkers);
+        return treemcp::StdioServer::run(application, workspace, workers);
     }
 
     QTimer::singleShot(0, &application, []() {
