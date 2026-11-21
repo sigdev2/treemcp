@@ -32,6 +32,9 @@ private:
         bool exclude;
     };
     QList<Rule> rules;
+
+    QString readFile(
+        const WorkspaceNode& directory, const QString& name, qsizetype depth, const std::function<bool()>& stop);
 };
 
 } // namespace treemcp

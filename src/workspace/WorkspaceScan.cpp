@@ -155,7 +155,7 @@ private:
         const auto excluded = [&](bool dir) { return matches(exclude, parts, dir) || rules.excludes(parts, dir); };
         const bool excludeFile = excluded(false);
         const bool excludeDirectory = ignoreDirectory || excluded(true);
-        if (excludeFile && excludeDirectory) {
+        if (excludeDirectory && (kind == NodeKind::Directory || excludeFile)) {
             return;
         }
         const auto eligibleFile = [&] {

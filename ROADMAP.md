@@ -56,6 +56,11 @@ Version 0.1.0 is the bootstrap; 1.0.0 requires all release gates below.
   and similarly named siblings such as `build_tools`. Verify that dot-prefixed files
   and directories stay excluded with either list and that nested `.gitignore` rules
   still apply in visited directories.
+- [x] Decide workspace ignore semantics and the matcher dependency policy.
+  The [architecture decision](docs/adr/workspace-ignore.md) defines rule
+  precedence, Git pattern compatibility, limits and reference tests.
+- [ ] Implement the full ignore-file pattern syntax in the project-owned matcher
+  and verify it against the Git reference fixtures on Windows and Linux.
 
 ## 4. Batch search (required for MVP)
 
@@ -100,7 +105,6 @@ Version 0.1.0 is the bootstrap; 1.0.0 requires all release gates below.
 ## Open design decisions
 
 - [ ] Resolve the open contract decisions in [requirements notes](docs/reference/requirements.md).
-- [ ] Decide complete gitignore semantics and its implementation/dependency policy.
 - [ ] Profile scheduler weights, batch admission costs and memory budgets.
 - [ ] Select release sandbox profiles and large-file opt-in policy.
 - [ ] Decide whether a future stateless pagination API is useful.

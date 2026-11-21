@@ -71,18 +71,32 @@ bool WorkspaceGlob::matches(const QStringList& parts, bool directory) const
 
 QString IgnoreRules::extend(const WorkspaceNode& directory, qsizetype depth, const std::function<bool()>& stop)
 {
-    const QString name = QStringLiteral(".gitignore");
+    for (const auto& name : { QStringLiteral(".gitignore"), QStringLiteral(".ignore") }) {
+        if (stop && stop()) {
+            break;
+        }
+        const QString error = readFile(directory, name, depth, stop);
+        if (!error.isEmpty()) {
+            return error;
+        }
+    }
+    return {};
+}
+
+QString IgnoreRules::readFile(
+    const WorkspaceNode& directory, const QString& name, qsizetype depth, const std::function<bool()>& stop)
+{
     const auto file = directory.child(name);
     if (file.kind() == NodeKind::Missing) {
         return {};
     }
     if (file.kind() != NodeKind::File) {
-        return QStringLiteral("Cannot open regular .gitignore");
+        return QStringLiteral("Cannot open regular %1").arg(name);
     }
     const auto read = readText(directory, name, file, 64 * 1024, stop);
     const auto* bytes = std::get_if<QByteArray>(&read);
     if (!bytes) {
-        return QStringLiteral("Cannot read bounded UTF-8 .gitignore");
+        return QStringLiteral("Cannot read bounded UTF-8 %1").arg(name);
     }
     for (QString line : QString::fromUtf8(*bytes).split('\n')) {
         if (stop && stop()) {
@@ -103,7 +117,7 @@ QString IgnoreRules::extend(const WorkspaceNode& directory, qsizetype depth, con
         }
         auto glob = WorkspaceGlob::compile(line, depth);
         if (!glob || rules.size() >= 256) {
-            return QStringLiteral("Invalid .gitignore pattern or active rule limit exceeded");
+            return QStringLiteral("Invalid %1 pattern or active rule limit exceeded").arg(name);
         }
         rules.append({ std::move(*glob), exclude });
     }

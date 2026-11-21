@@ -169,6 +169,10 @@ def check_filters(call, root, outside):
     assert len(limited["matches"]) == 1 and limited["truncated"]
     write(root, "src/.gitignore", "*.py\n")
     assert [p for p, _ in captures(call(**scope))] == ["test.py"]
+    ignore = write(root, ".ignore", "/test.py\n")
+    filtered = call(**scope)
+    assert not filtered["incomplete"] and captures(filtered) == [], filtered
+    ignore.unlink()
     write(root, "src/.gitignore", b"\xff")
     partial = call(**scope)
     assert partial["incomplete"] and partial["diagnostics"][0]["path"] == "src"
@@ -184,12 +188,20 @@ def check_filters(call, root, outside):
 def check_search_exclusions(executable, root):
     defaults = ["docs", "src/cmake", "build", "src/deep/CMakeFiles", "dist", "src/coverage", "src/__pycache__"]
     custom = ["generated", "src/deep/cache.py"]
-    always_visible = ["build_tools/example.py", "src/Docs/example.py", "src/generated_tools/example.py", "cache.py"]
+    always_visible = ["build_tools/example.py", "src/Docs/example.py", "src/generated_tools/example.py",
+                      "cache.py", "src/keep.py", "nested/skip.py"]
     for directory in defaults + custom:
         write(root, directory + "/example.py", "found")
-    for path in always_visible + [".hidden/example.py", "src/.hidden.py", "src/ignored.py", "src/request.py"]:
+    for path in always_visible + [".hidden/example.py", "src/.hidden.py", "src/ignored.py", "src/request.py",
+                                  "src/skip.py", "src/artifacts/example.py"]:
         write(root, path, "found")
-    write(root, "src/.gitignore", "/ignored.py\n")
+    write(root, ".ignore", "artifacts/\n")
+    write(root, "src/artifacts/.gitignore", b"\xff")
+    write(root, "src/.gitignore", "/ignored.py\n/keep.py\n")
+    local_ignore = write(root, "src/.ignore", "/skip.py\n!keep.py\n")
+    if os.name == "nt":
+        import ctypes
+        assert ctypes.windll.kernel32.SetFileAttributesW(str(local_ignore), 2)
 
     query = {"id": "names", "language": "python", "query": "(identifier) @name"}
     for options, skipped, visible in [
@@ -200,7 +212,8 @@ def check_search_exclusions(executable, root):
         invalid = write(root, skipped[-1] + "/.gitignore", b"\xff")
         with session(executable, root, *options) as call:
             expected = sorted(always_visible + [directory + "/example.py" for directory in visible])
-            for paths, wanted in [(["."], expected), ([skipped[0], skipped[-1] + "/example.py"], [])]:
+            for paths, wanted in [(["."], expected), ([skipped[0], skipped[-1] + "/example.py"], []),
+                                  (["src/skip.py", "src/artifacts/example.py"], [])]:
                 scope = {"paths": paths, "exclude": ["request.py"]}
                 single = call(**scope)
                 batch = call("batch_search", queries=[query], **scope)
@@ -210,6 +223,8 @@ def check_search_exclusions(executable, root):
                 assert batch["stats"]["filesVisited"] == len(wanted), batch
             path = skipped[0] + "/example.py"
             assert captures(call(path=path)) == [(path, "found")]
+            assert call(path="src/skip.py").get("isError")
+            assert call(path="src/artifacts/example.py").get("isError")
         invalid.unlink()
 
 

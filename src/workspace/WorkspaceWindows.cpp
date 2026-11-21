@@ -106,7 +106,7 @@ WorkspaceNode WorkspaceNode::child(const QString& component) const
         return WorkspaceNode(NodeKind::Error);
     }
     if ((info.dwFileAttributes & (FILE_ATTRIBUTE_DEVICE | FILE_ATTRIBUTE_REPARSE_POINT)) ||
-        ((info.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN) && component != ".gitignore"))
+        ((info.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN) && component != ".gitignore" && component != ".ignore"))
     {
         CloseHandle(handle);
         return WorkspaceNode(NodeKind::Excluded);

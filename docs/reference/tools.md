@@ -66,7 +66,7 @@ A failed single-file read returns a tool error.
 - With `paths`, both search tools skip directories named exactly `docs`, `cmake`,
   `build`, `CMakeFiles`, `dist`, `coverage` or `__pycache__` at any depth.
   Matching is case-sensitive. The server skips the directory before listing its
-  contents or reading its `.gitignore`, even when a selector points inside it.
+  contents or reading its ignore files, even when a selector points inside it.
   To replace the defaults, pass one `--ignore-dir <name>` per directory name at
   startup, for example `structural-mcp --ignore-dir generated --ignore-dir vendor`.
   Single-file `path` requests can still open files inside these directories.
@@ -78,7 +78,8 @@ A failed single-file read returns a tool error.
   containing the ignore file. A trailing slash selects directories.
   `*`, `?` and bracket classes match within one component. A whole `**` spans
   components. For example, `src/**/*.py` also selects `src/main.py`.
-- Each directory inherits its parents' `.gitignore` rules, then adds its own.
+- Each directory inherits its parents' rules, then reads its own `.gitignore`
+  followed by `.ignore`. Both files use the same pattern syntax.
   Blank lines and lines starting with `#` are skipped. The last matching rule
   wins. A leading `!` re-includes an entry if its parent is still traversed.
   The supported subset excludes backslash escapes and external Git configuration.

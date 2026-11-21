@@ -17,6 +17,7 @@ choices still require a compatibility or contract decision.
 | [Workspace boundaries and handle-based security](../internals/security.md) | Planned |
 | [No subprocess, network or persistent runtime writes](../internals/security.md) | Adopted constraint |
 | [Vendored dependencies and exact revisions](vendored-dependencies.md) | Accepted |
+| [Workspace ignore semantics and matcher dependencies](workspace-ignore.md) | Accepted |
 | [Search without stored pagination snapshots](../reference/tools.md) | Planned |
 | [Deterministic ordering and bounded result selection](../internals/batch.md) | Implemented for batches |
 | [Explicit predicate support](../reference/tools.md) | Implemented for single and batch search |
