@@ -41,8 +41,8 @@ timer expires queued work even when every worker is busy. Running searches check
 for interruption during traversal, reads, parser input, Tree-sitter progress,
 predicate evaluation and result construction. Native file operations and the
 bounded Tree-sitter query compilation call return before their caller can check
-again. Wire publication begins on the main thread after a final deadline and
-cancellation check.
+again. The main thread commits each reply to the output queue after a final
+deadline and cancellation check. A dedicated writer drains replies in order.
 
 The main thread serializes publication and cancellation for each JSON-RPC ID.
 An explicit cancellation received before publication removes queued work, signals
@@ -54,4 +54,8 @@ At EOF the session closes admission, cancels unfinished requests, joins workers
 and publishes replies already completed at the shutdown boundary. The stdio
 regression suite allows five seconds for cooperative shutdown on its local
 filesystem fixtures. The server waits for native operations and worker cleanup
-before exiting.
+before exiting. Pending output, including the current record, is limited to
+16 MiB. Exceeding that budget closes the transport with exit status 1. At EOF
+the writer drains pending replies while stdout makes progress. One second
+without a completed write during that drain interrupts the writer and reports
+a transport failure.

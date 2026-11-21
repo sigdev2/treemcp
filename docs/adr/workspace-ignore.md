@@ -6,8 +6,8 @@ Implemented for both search tools and single-file access.
 
 Apply ignore rules to every eligible workspace path, including tracked files and
 workspaces without a Git repository. Discover rules from the workspace root down
-to the candidate's parent. The only sources are the `.gitignore` and `.ignore`
-files in those directories. The Git index, `.git/info/exclude`, user and system
+to the candidate's parent. Look up the exact lowercase names `.gitignore` and
+`.ignore` on both platforms. The Git index, `.git/info/exclude`, user and system
 Git configuration, and ancestors above the workspace root are outside this scope.
 This gives two users searching the same tree the same ignore decisions.
 

@@ -99,6 +99,9 @@ def junction_or_link(target, link):
 
 
 def check_inputs(call, root):
+    for prefix, expected in [(78, "a" * 78 + "\U0001f600"), (79, "a" * 79)]:
+        result = call(source="x", **{"a" * prefix + "\U0001f600" + "x": True})
+        assert result["isError"] and result["content"][0]["text"] == "Unknown argument: " + expected, result
     for path in ("", ".", "..", "src/../a.py", "src/./a.py", "src//a.py", "src/", "/a.py",
                  str(root / "a.py"), "C:relative", "a.py:stream", r"\\.\NUL", r"\\host\share",
                  "aux.txt", "COM\u00b9.py", "a\x00b", "trailing.", "src\\a.py"):
@@ -228,6 +231,36 @@ def check_search_exclusions(executable, root):
         invalid.unlink()
 
 
+def check_explicit_access(call, root):
+    if os.name == "nt":
+        wrong_case = write(root, "case/.Ignore", "*.py\n")
+        write(root, "case/.GITIGNORE", "*.py\n")
+        write(root, "case/test.py", "visible")
+        result = call(paths=["case"])
+        assert not result["incomplete"] and not result["diagnostics"], result
+        assert captures(result) == [("case/test.py", "visible")]
+        assert captures(call(path="case/test.py")) == captures(result)
+        with wrong_case.open("ab"):
+            busy = call(paths=["case"])
+            assert not busy["incomplete"] and captures(busy) == captures(result), busy
+        exact = write(root, "other/.ignore", "*.py\n")
+        with exact.open("ab"):
+            busy = call(paths=["other"])
+            assert busy["incomplete"] and busy["diagnostics"], busy
+    else:
+        path = "traverse/only.py"
+        folder = write(root, path, "visible").parent
+        write(root, "traverse/.ignore", "hidden.py\n")
+        write(root, "traverse/hidden.py", "hidden")
+        folder.chmod(0o111)
+        try:
+            assert captures(call(path=path)) == [(path, "visible")]
+            assert call("syntax_tree", path=path)["nodes"]
+            assert call(path="traverse/hidden.py").get("isError")
+        finally:
+            folder.chmod(0o755)
+
+
 def check_directory_swap(call, root, outside):
     # Rename either an ordinary directory or an outside link into the same slot.
     live = root / "race"
@@ -280,6 +313,7 @@ def main():
             check_inputs(call, root)
             check_freshness(call, root)
             check_filters(call, root, outside)
+            check_explicit_access(call, root)
             check_unicode_names(call, root)
             check_directory_swap(call, root, outside)
             if os.name != "nt":

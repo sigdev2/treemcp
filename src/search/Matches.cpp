@@ -127,20 +127,8 @@ QString visitMatches(
     // The pinned runtime records up to three captures per visited node, but the C API
     // exposes only a 16-bit capture count. Guard repeated captures before it can wrap.
     constexpr uint32_t MAX_REPEAT_TREE_NODES = std::numeric_limits<uint16_t>::max() / 3;
-    if (ts_node_descendant_count(root) > MAX_REPEAT_TREE_NODES) {
-        const TSQuery* query = compiled.query.get();
-        for (uint32_t pattern = 0; pattern < ts_query_pattern_count(query); ++pattern) {
-            if (stop.requested()) {
-                incomplete = true;
-                return {};
-            }
-            for (uint32_t id = 0; id < ts_query_capture_count(query); ++id) {
-                const TSQuantifier quantifier = ts_query_capture_quantifier_for_id(query, pattern, id);
-                if (quantifier == TSQuantifierOneOrMore || quantifier == TSQuantifierZeroOrMore) {
-                    return QStringLiteral("Source tree exceeds the node limit for repeated captures");
-                }
-            }
-        }
+    if (compiled.hasRepeatedCapture && ts_node_descendant_count(root) > MAX_REPEAT_TREE_NODES) {
+        return QStringLiteral("Source tree exceeds the node limit for repeated captures");
     }
     const Cursor cursor { ts_query_cursor_new(), ts_query_cursor_delete };
     if (!cursor) {

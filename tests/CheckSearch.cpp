@@ -27,7 +27,8 @@ void checkValidation(const ToolCall& call)
         "Accepted a predicate capture bound only by a different pattern");
     require(error.value("byteOffset") == prefix.toUtf8().size() + 1, "Incorrect compiler byte offset");
     const QString fieldPrefix = prefix + "(call ";
-    const auto badField = validate(fieldPrefix + "callee: (identifier))");
+    // The nested capture allocates temporary quantifiers. LeakSanitizer checks the error path at exit.
+    const auto badField = validate(fieldPrefix + "callee: (identifier) @target)");
     require(
         badField.value("valid") == false &&
             badField.value("diagnostic").toObject().value("byteOffset") == fieldPrefix.toUtf8().size(),

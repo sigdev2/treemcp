@@ -42,7 +42,11 @@ QString validateArguments(const QJsonObject& schema, QJsonObject& arguments)
     const QJsonObject properties = schema.value("properties").toObject();
     for (auto it = arguments.begin(); it != arguments.end(); ++it) {
         if (!properties.contains(it.key())) {
-            return QStringLiteral("Unknown argument: %1").arg(it.key().left(80));
+            QString key = it.key().left(80);
+            if (!key.isEmpty() && key.back().isHighSurrogate()) {
+                key.chop(1);
+            }
+            return QStringLiteral("Unknown argument: %1").arg(key);
         }
     }
     const QJsonObject dependencies = schema.value("dependentRequired").toObject();

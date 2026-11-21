@@ -1,8 +1,11 @@
 """Exercise search admission, cancellation and deadlines through a live MCP connection."""
 
+import json
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
+import time
 
 from check_batch import params, query
 from check_workspace import wire_session, write
@@ -84,6 +87,45 @@ def check_races(executable, root):
         assert request("tools/call", search(source="last"))["structuredContent"]["matches"]
 
 
+def check_output_backpressure(executable, root):
+    with wire_session(executable, root, "--workers", "1") as (send, receive, _):
+        # Leave catalog replies unread while the worker is occupied. The short deadline
+        # must publish before the later cancellation, even though stdout is still full.
+        catalogs = [send("tools/list", {}) for _ in range(96)]
+        running = send("tools/call", search(path="big.py"))
+        queued = send("tools/call", search(source="queued", deadlineMs=20))
+        time.sleep(0.25)
+        cancel(send, queued)
+        cancel(send, running)
+        fence = send("ping", {})
+        for expected in catalogs:
+            reply, _ = receive()
+            assert reply["id"] == expected and reply["result"]["tools"], reply
+        reply, _ = receive()
+        assert reply["id"] == queued and "deadline" in reply["result"]["content"][0]["text"], reply
+        assert receive()[0]["id"] == fence
+
+    # Feed a finite stream and wait for process exit while holding the read end open.
+    # A stalled final drain is a transport failure and must release both I/O threads.
+    with tempfile.TemporaryFile() as frames:
+        def frame(method, params, **fields):
+            frames.write((json.dumps(dict(jsonrpc="2.0", method=method, params=params, **fields)) + "\n").encode())
+
+        frame("initialize", dict(protocolVersion="2025-11-25", capabilities={},
+                                 clientInfo=dict(name="test", version="1")), id=0)
+        frame("notifications/initialized", {})
+        for i in range(1, 193):
+            frame("tools/list", {}, id=i)
+        frames.seek(0)
+        with subprocess.Popen([executable, "--workspace-root", root], stdin=frames,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE) as child:
+            try:
+                assert child.wait(timeout=5) == 1
+                assert b"stdio" in child.stderr.read()
+            finally:
+                child.kill()
+
+
 if __name__ == "__main__":
     with tempfile.TemporaryDirectory() as temp:
         workspace = Path(temp) / "workspace"
@@ -93,3 +135,4 @@ if __name__ == "__main__":
         for use_cost in (False, True):
             check_capacity(program, workspace, use_cost)
         check_races(program, workspace)
+        check_output_backpressure(program, workspace)

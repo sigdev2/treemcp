@@ -74,6 +74,7 @@ include(cmake/Deployment.cmake)
 install(FILES README.md ROADMAP.md LICENSE StyleGuide.CPP.md .clang-format
     DESTINATION "${CMAKE_INSTALL_DOCDIR}")
 install(DIRECTORY docs/ DESTINATION "${CMAKE_INSTALL_DOCDIR}/docs")
+install(FILES tests/fixtures/workspace-ignore.json DESTINATION "${CMAKE_INSTALL_DOCDIR}/tests/fixtures")
 install(FILES ${tool_descriptors} DESTINATION "${CMAKE_INSTALL_DOCDIR}/schemas")
 install(DIRECTORY config/ DESTINATION "${CMAKE_INSTALL_DOCDIR}/config")
 install(FILES third_party/dependencies.lock.json third_party/SHA256SUMS

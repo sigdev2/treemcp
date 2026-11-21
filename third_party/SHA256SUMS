@@ -48,7 +48,7 @@ abd8fa83a805900f8e03b8b2b1abd47f9c7b8252f4401485c060348c407f5448  tree-sitter/li
 ac1ec4b7ba388a9d8708feeb6c5c766b2927cecfd6db644b939772e1dc086526  tree-sitter/lib/src/ts_assert.h
 b29c1c9fb7cc82f58c84b376df1297d6e2737a1d655fd356db0859e3c29c2fea  tree-sitter-cpp/src/tree_sitter/alloc.h
 b29c1c9fb7cc82f58c84b376df1297d6e2737a1d655fd356db0859e3c29c2fea  tree-sitter-python/src/tree_sitter/alloc.h
-6e86775a6300fa1c50348ac2a10a61a666b16a2ad4c2c2432b1120cf007cf250  tree-sitter/lib/src/query.c
+0e88728346d3746c0493c575b566a60a228109d35afbf77a7a8cab9283f65fda  tree-sitter/lib/src/query.c
 bb3434364fd50960a2c0936e211f66c9fa005a0dcea26de63692ebae3ae33c83  tree-sitter/lib/src/wasm_store.c
 bbc630cb913ac64274ce4412bc9d504174220323993f306ded74abe502867e74  tree-sitter/lib/src/atomic.h
 bfe9c7867881142600ad48570ef345dbb2b25319e61e1e08c7a15cc519dcb6a6  tree-sitter/lib/src/node.c

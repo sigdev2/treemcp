@@ -2,7 +2,8 @@
 
 The stdio server reads native Windows handles or POSIX file descriptors on a
 dedicated thread. It hands one bounded chunk at a time to the Qt event loop,
-which decodes records, dispatches requests and flushes replies. Search requests
+which decodes records, dispatches requests and queues serialized replies for a
+dedicated stdout writer. Search requests
 share a bounded worker pool. A batch coordinator submits opened files as workers
 become available.
 
@@ -16,12 +17,12 @@ stdin -> bounded JSON-RPC decoder -> dispatcher -> admission -> bounded schedule
                                                                     |
                                                               worker pool
                                                                     |
-stdout <- one main-thread serializer <- bounded completion queue <---+
+stdout <- writer <- bounded output queue <- main-thread serializer <-+
 ```
 
 Protocol/control messages remain responsive in the main event-loop thread.
 Workers own their Tree-sitter parser and query cursor. A worker reads each
-selected file and owns its buffer and trees. The serializer is the only stdout writer.
+selected file and owns its buffer and trees.
 
 Separate Windows and POSIX transport and secure-open implementations are required.
 Do not assume POSIX descriptor semantics for Windows stdin or Windows filesystem handles.

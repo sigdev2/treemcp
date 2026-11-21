@@ -146,7 +146,7 @@ Result searchScope(
                             grammar.extensions };
     SearchResults results;
     QJsonArray diagnostics;
-    const auto report = [&](const QString& path, const QString& message) {
+    const auto report = [&](const QString& path, const QString& message, ScanFailure) {
         results.incomplete = true;
         if (diagnostics.size() < 16) {
             QString clipped = path.left(256);
@@ -162,7 +162,7 @@ Result searchScope(
         [&](const QString& path, SelectedFile file) {
             const auto read = file.read([&] { return stop.requested(); });
             if (const auto* errorMessage = std::get_if<QString>(&read)) {
-                report(path, *errorMessage);
+                report(path, *errorMessage, ScanFailure::File);
             }
             const auto* source = std::get_if<QByteArray>(&read);
             if (!source || stop.requested()) {
@@ -170,7 +170,7 @@ Result searchScope(
             }
             const auto parsed = parseSource(*source, grammar.language, compiled, arguments, false, path, results, stop);
             if (const auto* failure = std::get_if<QString>(&parsed)) {
-                report(path, *failure);
+                report(path, *failure, ScanFailure::File);
             }
             return !results.full;
         },

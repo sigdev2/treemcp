@@ -76,6 +76,16 @@ def check_search(executable, root):
     write(root, "src/blob.py", b"\0")
     with session(executable, root) as call:
         check_limits(call)
+        write(root, "mixed/small.py", "visible")
+        with write(root, "mixed/large.cpp", "").open("wb") as output:
+            output.truncate(8 * 1024 * 1024 + 1)
+        data = batch(call, [query("python"), query("cpp1", language="cpp"), query("cpp2", language="cpp")],
+                     paths=["mixed"])
+        assert data["incomplete"] and [d["path"] for d in data["diagnostics"]] == ["mixed/large.cpp"], data
+        py, *cpp = data["items"]
+        single = call(paths=["mixed"])
+        assert not single["incomplete"] and not py["incomplete"] and py["matches"] == single["matches"], data
+        assert len(py["matches"]) == 1 and all(item["incomplete"] and not item["matches"] for item in cpp), data
         stats = equivalent(call, queries, paths)
         assert stats == dict(filesVisited=4, filesRead=4, filesParsed=3, treeBuilds=3, queryExecutions=7), stats
         bad = [query("language", "(_)", "missing"), query("syntax", "(missing_type)"), query("empty", ""),

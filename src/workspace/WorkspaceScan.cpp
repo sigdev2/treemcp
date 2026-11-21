@@ -49,6 +49,9 @@ public:
 
     QString run()
     {
+        if (scope.singleFile && scope.paths.size() != 1) {
+            return QStringLiteral("Expected one relative workspace file path");
+        }
         Selection selection;
         for (const auto& path : scope.paths) {
             if (!validSelector(path) || (scope.singleFile && path == ".")) {
@@ -93,7 +96,16 @@ private:
         const auto baseOffset = prefix.isEmpty() ? 0 : directoryPath.toUtf8().size() + 1;
         const QString error = rules.extend(*directory, baseOffset, options.stop);
         if (!error.isEmpty()) {
-            report(directoryPath, error);
+            report(directoryPath, error, ScanFailure::Scope);
+            return;
+        }
+        if (scope.singleFile) {
+            const auto& [name, child] = *selection.children.begin();
+            if (!name.startsWith('.')) {
+                auto parts = prefix;
+                parts.append(name);
+                process(directory, parts, child, rules, std::nullopt);
+            }
             return;
         }
         QSet<QString> found;
@@ -103,7 +115,7 @@ private:
                 return false;
             }
             if (++entries > 100000) {
-                report(directoryPath, QStringLiteral("Directory entry limit exceeded"));
+                report(directoryPath, QStringLiteral("Directory entry limit exceeded"), ScanFailure::Scope);
                 stopped = true;
                 return false;
             }
@@ -124,13 +136,14 @@ private:
             return !stopped && (selection.all || static_cast<size_t>(found.size()) < selection.children.size());
         });
         if (!listed) {
-            report(directoryPath, QStringLiteral("Cannot enumerate workspace directory"));
+            report(directoryPath, QStringLiteral("Cannot enumerate workspace directory"), ScanFailure::Scope);
         } else if (!stopped && !selection.all) {
             for (const auto& [name, child] : selection.children) {
                 if (!found.contains(name)) {
                     report(
                         prefix.isEmpty() ? name : directoryPath + '/' + name,
-                        QStringLiteral("Workspace path not found"));
+                        QStringLiteral("Workspace path not found"),
+                        ScanFailure::Scope);
                 }
             }
         }
@@ -141,7 +154,7 @@ private:
         const QStringList& parts,
         const Selection& selection,
         const IgnoreRules& rules,
-        NodeKind kind)
+        std::optional<NodeKind> kind)
     {
         const QString& name = parts.back();
         const bool ignoreDirectory = !scope.singleFile && workspace.ignoredDirectories.contains(name);
@@ -151,7 +164,10 @@ private:
         const QString path = parts.join('/');
         const QByteArray pathBytes = path.toUtf8();
         if (parts.size() > 64 || pathBytes.size() > MAX_PATH_BYTES) {
-            report(path, QStringLiteral("Workspace path limit exceeded"));
+            report(
+                path,
+                QStringLiteral("Workspace path limit exceeded"),
+                kind == NodeKind::File ? ScanFailure::File : ScanFailure::Scope);
             return;
         }
         const auto excluded = [&](bool dir) {
@@ -187,14 +203,17 @@ private:
             return;
         }
         if (node.kind() != NodeKind::File || !selection.all) {
-            report(path, QStringLiteral("Cannot open selected workspace entry"));
+            report(
+                path,
+                QStringLiteral("Cannot open selected workspace entry"),
+                kind == NodeKind::File ? ScanFailure::File : ScanFailure::Scope);
             return;
         }
         if (kind != NodeKind::File && !eligibleFile()) {
             return;
         }
         if (files == options.maxFiles) {
-            report(path, QStringLiteral("Workspace file limit exceeded"));
+            report(path, QStringLiteral("Workspace file limit exceeded"), ScanFailure::Scope);
             stopped = true;
             return;
         }
@@ -237,7 +256,7 @@ SourceRead readWorkspaceFile(const Workspace& workspace, const QString& path, co
             }
             return false;
         },
-        [&](const QString&, const QString& diagnostic) { result = diagnostic; },
+        [&](const QString&, const QString& diagnostic, ScanFailure) { result = diagnostic; },
         { 10000, stop });
     if (!error.isEmpty()) {
         return error;

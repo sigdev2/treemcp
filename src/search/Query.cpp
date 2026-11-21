@@ -164,6 +164,7 @@ bool Predicate::accepts(const TSQueryMatch& match, QByteArrayView source, const 
 std::optional<QueryDiagnostic> CompiledQuery::compile(const TSLanguage* language, const QString& source)
 {
     predicates.clear();
+    hasRepeatedCapture = false;
     query.reset();
     QList<qsizetype> operators;
     if (auto error = inspectQuery(source, operators)) {
@@ -181,8 +182,13 @@ std::optional<QueryDiagnostic> CompiledQuery::compile(const TSLanguage* language
         return QueryDiagnostic { 0, QStringLiteral("Expected a query pattern") };
     }
     predicates.resize(patterns);
+    const uint32_t captures = ts_query_capture_count(query.get());
     qsizetype operatorIndex = 0;
     for (uint32_t i = 0; i < patterns; ++i) {
+        for (uint32_t id = 0; !hasRepeatedCapture && id < captures; ++id) {
+            const auto quantifier = ts_query_capture_quantifier_for_id(query.get(), i, id);
+            hasRepeatedCapture = quantifier == TSQuantifierOneOrMore || quantifier == TSQuantifierZeroOrMore;
+        }
         uint32_t count = 0;
         const auto* steps = ts_query_predicates_for_pattern(query.get(), i, &count);
         uint32_t start = 0;

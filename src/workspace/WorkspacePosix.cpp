@@ -10,6 +10,18 @@
 #include <unistd.h>
 
 namespace treemcp {
+namespace {
+
+// Listing opens a separate descriptor. Known children only need directory search access.
+#if defined(O_PATH)
+constexpr int DIRECTORY_FLAGS = O_PATH | O_DIRECTORY;
+#elif defined(O_SEARCH)
+constexpr int DIRECTORY_FLAGS = O_SEARCH | O_DIRECTORY;
+#else
+constexpr int DIRECTORY_FLAGS = O_RDONLY | O_DIRECTORY;
+#endif
+
+} // namespace
 
 WorkspaceNode::~WorkspaceNode()
 {
@@ -20,7 +32,7 @@ WorkspaceNode::~WorkspaceNode()
 
 WorkspaceNode WorkspaceNode::openRoot(const QString& path)
 {
-    const int fd = open(QFile::encodeName(path).constData(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    const int fd = open(QFile::encodeName(path).constData(), DIRECTORY_FLAGS | O_NOFOLLOW | O_CLOEXEC);
     return WorkspaceNode(fd >= 0 ? NodeKind::Directory : NodeKind::Error, fd);
 }
 
@@ -37,8 +49,8 @@ WorkspaceNode WorkspaceNode::child(const QString& component) const
     if (!S_ISREG(entry.st_mode) && !S_ISDIR(entry.st_mode)) {
         return WorkspaceNode(NodeKind::Excluded);
     }
-    const int fd =
-        openat(static_cast<int>(native), name.constData(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK | O_NOCTTY);
+    const int access = S_ISDIR(entry.st_mode) ? DIRECTORY_FLAGS : O_RDONLY | O_NONBLOCK | O_NOCTTY;
+    const int fd = openat(static_cast<int>(native), name.constData(), access | O_NOFOLLOW | O_CLOEXEC);
     if (fd < 0) {
         return WorkspaceNode(errno == ENOENT ? NodeKind::Missing : NodeKind::Error);
     }

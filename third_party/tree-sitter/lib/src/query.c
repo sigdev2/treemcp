@@ -21,7 +21,6 @@
 // #define DEBUG_EXECUTE_QUERY
 
 #define MAX_STEP_CAPTURE_COUNT 3
-#define MAX_NEGATED_FIELD_COUNT 8
 #define MAX_STATE_PREDECESSOR_COUNT 256
 #define MAX_ANALYSIS_STATE_DEPTH 8
 #define MAX_ANALYSIS_ITERATION_COUNT 256
@@ -99,7 +98,7 @@ typedef struct {
   uint16_t capture_ids[MAX_STEP_CAPTURE_COUNT];
   uint16_t depth;
   uint16_t alternative_index;
-  uint16_t negated_field_list_id;
+  uint32_t negated_field_list_id;
   bool is_named: 1;
   bool is_immediate: 1;
   bool is_last_child: 1;
@@ -201,7 +200,6 @@ typedef struct {
   bool seeking_immediate_match: 1;
   bool has_in_progress_alternatives: 1;
   bool dead: 1;
-  bool needs_parent: 1;
 } QueryState;
 
 typedef Array(TSQueryCapture) CaptureList;
@@ -1975,7 +1973,7 @@ static void ts_query__add_negated_fields(
   TSQuery *self,
   uint16_t step_index,
   TSFieldId *field_ids,
-  uint16_t field_count
+  uint32_t field_count
 ) {
   QueryStep *step = array_get(&self->steps, step_index);
 
@@ -2333,7 +2331,7 @@ static TSQueryError ts_query__parse_pattern(
         // Parse the wildcard symbol
         if (length == 1 && node_name[0] == '_') {
           symbol = WILDCARD_SYMBOL;
-        } else if (!strncmp(node_name, "MISSING", length)) {
+        } else if (length == sizeof("MISSING") - 1 && !memcmp(node_name, "MISSING", length)) {
           is_missing = true;
           stream_skip_whitespace(stream);
 
@@ -2469,8 +2467,7 @@ static TSQueryError ts_query__parse_pattern(
       // Parse the child patterns
       bool child_is_immediate = false;
       uint16_t last_child_step_index = 0;
-      uint16_t negated_field_count = 0;
-      TSFieldId negated_field_ids[MAX_NEGATED_FIELD_COUNT];
+      Array(TSFieldId) negated_field_ids = array_new();
       CaptureQuantifiers child_capture_quantifiers = capture_quantifiers_new();
       for (;;) {
         // Parse a negated field assertion
@@ -2478,6 +2475,7 @@ static TSQueryError ts_query__parse_pattern(
           stream_advance(stream);
           stream_skip_whitespace(stream);
           if (!stream_is_ident_start(stream)) {
+            array_delete(&negated_field_ids);
             capture_quantifiers_delete(&child_capture_quantifiers);
             return TSQueryErrorSyntax;
           }
@@ -2493,15 +2491,12 @@ static TSQueryError ts_query__parse_pattern(
           );
           if (!field_id) {
             stream->input = field_name;
+            array_delete(&negated_field_ids);
             capture_quantifiers_delete(&child_capture_quantifiers);
             return TSQueryErrorField;
           }
 
-          // Keep the field ids sorted.
-          if (negated_field_count < MAX_NEGATED_FIELD_COUNT) {
-            negated_field_ids[negated_field_count] = field_id;
-            negated_field_count++;
-          }
+          array_push(&negated_field_ids, field_id);
 
           continue;
         }
@@ -2528,6 +2523,7 @@ static TSQueryError ts_query__parse_pattern(
           if (stream->next == ')') {
             if (child_is_immediate) {
               if (last_child_step_index == 0) {
+                array_delete(&negated_field_ids);
                 capture_quantifiers_delete(&child_capture_quantifiers);
                 return TSQueryErrorSyntax;
               }
@@ -2550,12 +2546,12 @@ static TSQueryError ts_query__parse_pattern(
               }
             }
 
-            if (negated_field_count) {
+            if (negated_field_ids.size) {
               ts_query__add_negated_fields(
                 self,
                 starting_step_index,
-                negated_field_ids,
-                negated_field_count
+                negated_field_ids.contents,
+                negated_field_ids.size
               );
             }
 
@@ -2565,6 +2561,7 @@ static TSQueryError ts_query__parse_pattern(
           e = TSQueryErrorSyntax;
         }
         if (e) {
+          array_delete(&negated_field_ids);
           capture_quantifiers_delete(&child_capture_quantifiers);
           return e;
         }
@@ -2575,6 +2572,7 @@ static TSQueryError ts_query__parse_pattern(
         child_is_immediate = false;
         capture_quantifiers_clear(&child_capture_quantifiers);
       }
+      array_delete(&negated_field_ids);
       capture_quantifiers_delete(&child_capture_quantifiers);
     }
   }
@@ -2645,6 +2643,7 @@ static TSQueryError ts_query__parse_pattern(
       length
     );
     if (!field_id) {
+      capture_quantifiers_delete(&field_capture_quantifiers);
       stream->input = field_name;
       return TSQueryErrorField;
     }
@@ -2849,23 +2848,10 @@ TSQuery *ts_query_new(
     array_push(&self->capture_quantifiers, capture_quantifiers);
 
     // Maintain a map that can look up patterns for a given root symbol.
-    uint16_t wildcard_root_alternative_index = NONE;
     for (;;) {
       QueryStep *step = array_get(&self->steps, start_step_index);
 
-      // If a pattern has a wildcard at its root, but it has a non-wildcard child,
-      // then optimize the matching process by skipping matching the wildcard.
-      // Later, during the matching process, the query cursor will check that
-      // there is a parent node, and capture it if necessary.
-      if (step->symbol == WILDCARD_SYMBOL && step->depth == 0 && !step->field) {
-        QueryStep *second_step = array_get(&self->steps, start_step_index + 1);
-        if (second_step->symbol != WILDCARD_SYMBOL && second_step->depth == 1 && !second_step->is_immediate) {
-          wildcard_root_alternative_index = step->alternative_index;
-          start_step_index += 1;
-          step = second_step;
-        }
-      }
-
+      // Start at the root step so all parent constraints are evaluated.
       // Determine whether the pattern has a single root node. This affects
       // decisions about whether or not to start matching the pattern when
       // a query cursor has a range restriction or when immediately within an
@@ -2894,9 +2880,6 @@ TSQuery *ts_query_new(
       // then add multiple entries to the pattern map.
       if (step->alternative_index != NONE) {
         start_step_index = step->alternative_index;
-      } else if (wildcard_root_alternative_index != NONE) {
-        start_step_index = wildcard_root_alternative_index;
-        wildcard_root_alternative_index = NONE;
       } else {
         break;
       }
@@ -3432,7 +3415,6 @@ static void ts_query_cursor__add_state(
     .consumed_capture_count = 0,
     .seeking_immediate_match = true,
     .has_in_progress_alternatives = false,
-    .needs_parent = step->depth == 1,
     .dead = false,
   }));
 }
@@ -3934,36 +3916,6 @@ static inline bool ts_query_cursor__advance(
                 state->step_index
               );
               copy_count++;
-            }
-          }
-
-          // If this pattern started with a wildcard, such that the pattern map
-          // actually points to the *second* step of the pattern, then check
-          // that the node has a parent, and capture the parent node if necessary.
-          if (state->needs_parent) {
-            TSNode parent = ts_tree_cursor_parent_node(&self->cursor);
-            if (ts_node_is_null(parent)) {
-              LOG("  missing parent node\n");
-              state->dead = true;
-            } else {
-              state->needs_parent = false;
-              QueryStep *skipped_wildcard_step = step;
-              do {
-                skipped_wildcard_step--;
-              } while (
-                skipped_wildcard_step->is_dead_end ||
-                skipped_wildcard_step->is_pass_through ||
-                skipped_wildcard_step->depth > 0
-              );
-              if (skipped_wildcard_step->capture_ids[0] != NONE) {
-                LOG("  capture wildcard parent\n");
-                ts_query_cursor__capture(
-                  self,
-                  state,
-                  skipped_wildcard_step,
-                  parent
-                );
-              }
             }
           }
 

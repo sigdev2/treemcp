@@ -178,6 +178,22 @@ if __name__ == "__main__":
     executable = str(Path(sys.argv[1]).resolve())
     with tempfile.TemporaryDirectory() as temp, session(executable, Path(temp)) as call:
         root = Path(temp)
+        fields = "!alias !alternative !argument !arguments !attribute !cause !condition !consequence"
+        check_group(call, root, "parents/demo.py", "python", "def hello():\n    x = y\n    return f(z)\n", [
+            ("expression-parent", "(expression (identifier) @id) @parent",
+             [hit(("parent", "f(z)"), ("id", "f"))]),
+            ("parent-without-left", "(_ !left (identifier) @id) @parent",
+             [hit(("parent", "def hello():\n    x = y\n    return f(z)"), ("id", "hello")),
+              hit(("parent", "f(z)"), ("id", "f")), hit(("parent", "(z)"), ("id", "z"))]),
+            ("eight-fields", f"(function_definition {fields} name: (identifier) @id)", [hit(("id", "hello"))]),
+            ("ninth-field", f"(function_definition {fields} !name) @fn", []),
+        ])
+        for keyword in ("M", "MISS", "MISSIN"):
+            validation = call("query_validate", query=f"({keyword})")
+            assert not validation["valid"] and validation["diagnostic"]["byteOffset"] == 1, validation
+        assert call("query_validate", query="(MISSING)")["valid"]
+        check_group(call, root, "missing/declaration.cpp", "cpp", "int x",
+                    [("missing-semicolon", "(MISSING) @token", [hit(("token", ""))])], syntax_errors=True)
         check_group(call, root, "python/service.py", "python", PYTHON_SOURCE, PYTHON_QUERIES)
         check_group(call, root, "cpp/service.cpp", "cpp", CPP_SOURCE, CPP_QUERIES)
         check_group(call, root, "pairs/compare.py", "python", PAIR_SOURCE, PAIR_QUERIES)

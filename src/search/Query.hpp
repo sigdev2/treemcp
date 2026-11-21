@@ -36,6 +36,7 @@ struct Predicate {
 struct CompiledQuery {
     Query query { nullptr, ts_query_delete };
     QList<QList<Predicate>> predicates;
+    bool hasRepeatedCapture = false;
     std::optional<QueryDiagnostic> compile(const TSLanguage* language, const QString& source);
 };
 

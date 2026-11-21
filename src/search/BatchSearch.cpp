@@ -60,6 +60,13 @@ struct Item {
     bool syntaxErrors = false;
 };
 
+bool acceptsFile(const LanguageDefinition& grammar, const QString& path)
+{
+    return std::any_of(grammar.extensions.begin(), grammar.extensions.end(), [&](const QString& suffix) {
+        return path.endsWith(suffix);
+    });
+}
+
 QString clipped(const QString& string)
 {
     QString value = string.left(256);
@@ -128,10 +135,7 @@ struct Batch {
             if (stop.requested()) {
                 return;
             }
-            if (std::none_of(grammar->extensions.begin(), grammar->extensions.end(), [&](const QString& suffix) {
-                    return path.endsWith(suffix);
-                }))
-            {
+            if (!acceptsFile(*grammar, path)) {
                 continue;
             }
             const Tree tree = parseTree(source, grammar->language, stop);
@@ -177,6 +181,23 @@ struct Batch {
                 item->incomplete |= incomplete || !error.isEmpty();
                 if (!error.isEmpty()) {
                     diagnostic(path, error);
+                }
+            }
+        }
+    }
+
+    void scanFailure(const QString& path, const QString& message, ScanFailure failure)
+    {
+        std::lock_guard lock(mutex);
+        diagnostic(path, message);
+        if (failure == ScanFailure::Scope) {
+            scopeIncomplete = true;
+            return;
+        }
+        for (const auto& [grammar, queries] : groups) {
+            if (acceptsFile(*grammar, path)) {
+                for (auto* item : queries) {
+                    item->incomplete = true;
                 }
             }
         }
@@ -362,13 +383,12 @@ SingleFile::Result batchSearch(
                     return;
                 }
                 const auto read = file->read([&] { return stop.requested(); });
+                if (const auto* problem = std::get_if<QString>(&read)) {
+                    batch.scanFailure(path, *problem, ScanFailure::File);
+                    return;
+                }
                 {
                     std::lock_guard lock(batch.mutex);
-                    if (const auto* problem = std::get_if<QString>(&read)) {
-                        batch.scopeIncomplete = true;
-                        batch.diagnostic(path, *problem);
-                        return;
-                    }
                     ++batch.read;
                 }
                 if (const auto* source = std::get_if<QByteArray>(&read)) {
@@ -376,10 +396,8 @@ SingleFile::Result batchSearch(
                 }
             });
         },
-        [&](const QString& path, const QString& message) {
-            std::lock_guard lock(batch.mutex);
-            batch.scopeIncomplete = true;
-            batch.diagnostic(path, message);
+        [&](const QString& path, const QString& message, ScanFailure failure) {
+            batch.scanFailure(path, message, failure);
         },
         limits);
     if (stop.requested()) {

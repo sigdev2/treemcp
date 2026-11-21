@@ -50,7 +50,11 @@ struct SelectedFile {
 };
 
 using FileVisitor = std::function<bool(const QString&, SelectedFile)>;
-using ScanDiagnostic = std::function<void(const QString&, const QString&)>;
+enum class ScanFailure {
+    File,
+    Scope
+};
+using ScanDiagnostic = std::function<void(const QString&, const QString&, ScanFailure)>;
 QString scanWorkspace(
     const Workspace& workspace,
     const FileScope& scope,

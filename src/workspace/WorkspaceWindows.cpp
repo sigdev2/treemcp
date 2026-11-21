@@ -25,8 +25,34 @@ QString finalName(HANDLE handle)
     return QString::fromWCharArray(buffer.data(), count);
 }
 
-NTSTATUS
-openRelative(HANDLE parent, const QString& component, ULONG flags, HANDLE& handle, ULONG sharing = FILE_SHARE_READ)
+std::optional<NodeKind> nameError(HANDLE directory, HANDLE handle, const QString& component)
+{
+    QString parent = finalName(directory);
+    if (parent.isEmpty()) {
+        return NodeKind::Error;
+    }
+    if (!parent.endsWith('\\')) {
+        parent += '\\';
+    }
+    const QString actual = finalName(handle);
+    if (actual == parent + component) {
+        return std::nullopt;
+    }
+    if (actual.startsWith(parent) &&
+        QStringView(actual).sliced(parent.size()).compare(component, Qt::CaseInsensitive) == 0)
+    {
+        return NodeKind::Missing;
+    }
+    return NodeKind::Error;
+}
+
+NTSTATUS openRelative(
+    HANDLE parent,
+    const QString& component,
+    ULONG flags,
+    HANDLE& handle,
+    ULONG sharing = FILE_SHARE_READ,
+    ACCESS_MASK access = FILE_READ_DATA)
 {
     std::wstring name = component.toStdWString();
     const auto bytes = static_cast<USHORT>(name.size() * sizeof(wchar_t));
@@ -38,7 +64,7 @@ openRelative(HANDLE parent, const QString& component, ULONG flags, HANDLE& handl
     IO_STATUS_BLOCK statusBlock {};
     return NtCreateFile(
         &handle,
-        FILE_READ_DATA | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+        access | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
         &attributes,
         &statusBlock,
         nullptr,
@@ -67,7 +93,7 @@ WorkspaceNode WorkspaceNode::openRoot(const QString& path)
     const auto name = QDir::toNativeSeparators(QDir(path).absolutePath()).toStdWString();
     const HANDLE handle = CreateFileW(
         name.c_str(),
-        FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES,
+        FILE_TRAVERSE | FILE_READ_ATTRIBUTES,
         FILE_SHARE_READ | FILE_SHARE_WRITE,
         nullptr,
         OPEN_EXISTING,
@@ -94,34 +120,42 @@ WorkspaceNode WorkspaceNode::child(const QString& component) const
     }
     HANDLE handle = nullptr;
     const HANDLE directory = reinterpret_cast<HANDLE>(native);
-    const NTSTATUS status = openRelative(directory, component, 0, handle);
+    const bool ruleFile = component == ".gitignore" || component == ".ignore";
+    NTSTATUS status = openRelative(directory, component, 0, handle);
+    if (status < 0 && RtlNtStatusToDosError(status) == ERROR_ACCESS_DENIED) {
+        status = openRelative(directory, component, FILE_DIRECTORY_FILE, handle, FILE_SHARE_READ, FILE_TRAVERSE);
+    }
     if (status < 0) {
         const ULONG error = RtlNtStatusToDosError(status);
-        return WorkspaceNode(
-            error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND ? NodeKind::Missing : NodeKind::Error);
+        if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND) {
+            return WorkspaceNode(NodeKind::Missing);
+        }
+        // A writer may deny the data handle. Check the spelling with an attributes-only
+        // handle so a busy .Ignore does not look like an unreadable .ignore.
+        if (ruleFile &&
+            openRelative(directory, component, 0, handle, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0) >=
+                0)
+        {
+            const auto failure = nameError(directory, handle, component);
+            CloseHandle(handle);
+            return WorkspaceNode(failure.value_or(NodeKind::Error));
+        }
+        return WorkspaceNode(NodeKind::Error);
     }
     BY_HANDLE_FILE_INFORMATION info {};
     if (GetFileType(handle) != FILE_TYPE_DISK || !GetFileInformationByHandle(handle, &info)) {
         CloseHandle(handle);
         return WorkspaceNode(NodeKind::Error);
     }
+    if (const auto failure = nameError(directory, handle, component)) {
+        CloseHandle(handle);
+        return WorkspaceNode(*failure);
+    }
     if ((info.dwFileAttributes & (FILE_ATTRIBUTE_DEVICE | FILE_ATTRIBUTE_REPARSE_POINT)) ||
-        ((info.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN) && component != ".gitignore" && component != ".ignore"))
+        ((info.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN) && !ruleFile))
     {
         CloseHandle(handle);
         return WorkspaceNode(NodeKind::Excluded);
-    }
-    QString parent = finalName(directory);
-    if (parent.isEmpty()) {
-        CloseHandle(handle);
-        return WorkspaceNode(NodeKind::Error);
-    }
-    if (!parent.endsWith('\\')) {
-        parent += '\\';
-    }
-    if (finalName(handle) != parent + component) {
-        CloseHandle(handle);
-        return WorkspaceNode(NodeKind::Error);
     }
     return WorkspaceNode(
         info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY ? NodeKind::Directory : NodeKind::File,
