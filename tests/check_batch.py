@@ -27,15 +27,20 @@ def complete(data):
     return data["items"]
 
 
-def equivalent(call, queries, paths, expected_text=None, **limits):
+def equivalent(call, queries, paths, expected_hits=None, **limits):
     data = batch(call, queries, paths=paths, deadlineMs=120000, **limits)
     results = complete(data)
     assert [r["id"] for r in results] == [q["id"] for q in queries]
     for item, spec in zip(results, queries):
-        if expected_text is not None:
+        if expected_hits is not None:
+            path, text = expected_hits[spec["id"]]
             match, = item["matches"]
             capture, = match["captures"]
-            assert capture["text"] == expected_text[spec["id"]]
+            assert match["path"] == path and match["patternIndex"] == 0 and not match["capturesTruncated"], match
+            assert capture == dict(name="n", text=text, textTruncated=False,
+                                   range=dict(startByte=0, endByte=len(text), startRow=0, endRow=0,
+                                              startColumn=0, endColumn=len(text))), capture
+            assert not item["hasSyntaxErrors"] and not item["incomplete"] and not item["truncated"], item
         single = call(paths=paths, **{k: v for k, v in spec.items() if k != "id"})
         assert not (single["truncated"] or single["incomplete"])
         assert item["hasSyntaxErrors"] == single["hasSyntaxErrors"]
@@ -145,13 +150,42 @@ def check_order(executable, root):
             assert data["truncated"] and not data["incomplete"]
             items = data["items"]
             assert [len(i["matches"]) for i in items] == [7, 2, 0] and all(i["truncated"] for i in items)
-            keys = [(m["path"].encode(), m["captures"][0]["range"]["startByte"], m["patternIndex"])
+            keys = [(m["path"], m["captures"][0]["range"]["startByte"], m["patternIndex"])
                     for m in items[0]["matches"]]
-            assert keys == sorted(keys) and keys[0][0] == b"order/a.py"
+            assert keys == [("order/a.py", 0, 0), ("order/a.py", 0, 1), ("order/a.py", 4, 0),
+                            ("order/a.py", 4, 1), ("order/b.py", 0, 0), ("order/b.py", 0, 1),
+                            ("order/b.py", 4, 0)], keys
+            assert [(m["path"], m["captures"][0]["text"]) for m in items[1]["matches"]] == [
+                ("order/a.py", "a"), ("order/a.py", "b")]
             assert previous is None or previous == data
             previous = data
         for name in names:
             (root / f"order/{name}.py").unlink()
+
+
+def check_item_limits(executable, root):
+    write(root, "ties.py", "f(a,b,c,d)")
+    write(root, "repeat.py", "x\n" * 11000 + "winner")
+    tie = "(argument_list (identifier) @first (identifier) @second)"
+    repeated = "(module (expression_statement (identifier) @n)+)"
+    with session(executable, root) as call:
+        result = batch(call, [query("ties", tie, maxMatches=4)], paths=["ties.py"])
+        item, = result["items"]
+        assert not result["incomplete"] and result["truncated"] and item["truncated"], result
+        assert [[c["text"] for c in m["captures"]] for m in item["matches"]] == [
+            ["a", "b"], ["a", "c"], ["a", "d"], ["b", "c"]]
+        result = batch(call, [query("repeat", repeated), query("literal", '((identifier) @n (#eq? @n "winner"))')],
+                       paths=["repeat.py"])
+        failed, good = result["items"]
+        assert result["incomplete"] and not result["truncated"] and not result["deadlineExceeded"], result
+        assert failed["incomplete"] and not failed["matches"] and not good["incomplete"], result
+        match, = good["matches"]
+        capture, = match["captures"]
+        assert capture["text"] == "winner" and match["path"] == "repeat.py", match
+        diagnostic = dict(path="repeat.py", message="Source tree exceeds the node limit for repeated captures")
+        assert result["diagnostics"] == [diagnostic], result
+        single = call(paths=["repeat.py"], query=repeated)
+        assert single["incomplete"] and not single["matches"] and single["diagnostics"] == [diagnostic], single
 
 
 def check_wire(executable, root):
@@ -207,7 +241,7 @@ def corpus(executable, root):
         queries = [query(str(i), f'((identifier) @n (#eq? @n "hit{i}"))') for i in range(query_count)]
         with session(executable, root) as call:
             stats = equivalent(call, queries, [scope.name, f"{scope.name}/0", scope.name],
-                               {str(i): f"hit{i}" for i in range(query_count)})
+                               {str(i): (f"{count}/0/{i}.py", f"hit{i}") for i in range(query_count)})
             assert stats == dict(filesVisited=count, filesRead=count, filesParsed=count,
                                  treeBuilds=count, queryExecutions=count * query_count)
 
@@ -222,4 +256,5 @@ if __name__ == "__main__":
         else:
             check_search(executable, root)
             check_order(executable, root)
+            check_item_limits(executable, root)
             check_wire(executable, root)

@@ -4,6 +4,7 @@
 
 #include <QFile>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QTemporaryDir>
 #include <tree_sitter/api.h>
 #include <unistd.h>
@@ -19,6 +20,7 @@ thread_local bool hasSource = false;
 thread_local const TSTree* ownedTree = nullptr;
 using Clock = std::chrono::steady_clock;
 Clock::time_point delayCleanupUntil {};
+bool failParse = false;
 
 } // namespace
 
@@ -49,6 +51,9 @@ extern "C" TSTree*
     }
     hasSource = false;
     ++builds;
+    if (failParse) {
+        return nullptr;
+    }
     TSTree* tree = __real_ts_parser_parse_with_options(parser, previous, input, options);
     if (tree) {
         ownedTree = tree;
@@ -109,6 +114,27 @@ int main()
         {
             return 1;
         }
+        if (i == 1) {
+            // Expiry between worker completion and publication must preserve all retained results.
+            auto expected = data;
+            auto items = expected.value("items").toArray();
+            for (qsizetype index = 0; index < items.size(); ++index) {
+                auto item = items.at(index).toObject();
+                item.insert("incomplete", true);
+                items[index] = item;
+            }
+            expected.insert("items", items);
+            expected.insert("incomplete", true);
+            expected.insert("deadlineExceeded", true);
+            const auto late = treemcp::Tools::deadlineReply(1, treemcp::Tools::dataReply(1, data));
+            const auto result = late.value("result").toObject();
+            const auto text = result.value("content").toArray().first().toObject().value("text").toString();
+            if (late.value("id") != 1 || result.value("structuredContent") != expected ||
+                QJsonDocument::fromJson(text.toUtf8()).object() != expected)
+            {
+                return 1;
+            }
+        }
     }
     args.insert("paths", QJsonArray { ".", "../invalid" });
     if (!call().value("isError").toBool()) {
@@ -119,8 +145,21 @@ int main()
     if (!call().value("isError").toBool() || reads != 6 || builds != 6 || liveTrees != 0 || ownershipError.load()) {
         return 1;
     }
-    // Make the last worker cross the deadline after it has already retained a match.
     args.insert("paths", QJsonArray { "a.py" });
+    args.insert("queries", QJsonArray { queries.first(), queries.at(1) });
+    failParse = true;
+    const auto failed = call().value("structuredContent").toObject();
+    failParse = false;
+    const auto affected = failed.value("items").toArray();
+    const QJsonArray diagnostic { QJsonObject { { "path", "a.py" }, { "message", "Cannot parse source" } } };
+    if (affected.size() != 2 || failed.value("incomplete") != true || failed.value("diagnostics") != diagnostic ||
+        affected.first().toObject().value("incomplete") != true ||
+        affected.last().toObject().value("incomplete") != false ||
+        failed.value("stats").toObject().value("treeBuilds") != 0 || liveTrees != 0)
+    {
+        return 1;
+    }
+    // Make the last worker cross the deadline after it has already retained a match.
     args.insert("queries", QJsonArray { queries.first() });
     deadline = Clock::now() + std::chrono::milliseconds(500);
     delayCleanupUntil = deadline;

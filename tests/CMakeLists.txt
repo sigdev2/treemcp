@@ -1,6 +1,14 @@
-add_test(NAME bootstrap.runtime COMMAND structural-mcp --self-check)
+add_test(NAME bootstrap.runtime
+    COMMAND "${CMAKE_COMMAND}" "-DPROGRAM=$<TARGET_FILE:structural-mcp>" -DSELF_CHECK=ON
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/CheckCli.cmake")
 add_test(NAME bootstrap.cli
     COMMAND "${CMAKE_COMMAND}" "-DPROGRAM=$<TARGET_FILE:structural-mcp>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/CheckCli.cmake")
+add_executable(check-broken-grammar ../src/main.cpp MisregisteredGrammar.cpp)
+target_link_libraries(check-broken-grammar PRIVATE treemcp_core)
+treemcp_set_warnings(check-broken-grammar)
+add_test(NAME bootstrap.broken-grammar
+    COMMAND "${CMAKE_COMMAND}" "-DPROGRAM=$<TARGET_FILE:check-broken-grammar>" -DBROKEN_GRAMMAR=ON
         -P "${CMAKE_CURRENT_SOURCE_DIR}/CheckCli.cmake")
 add_executable(check-decoder CheckDecoder.cpp)
 target_link_libraries(check-decoder PRIVATE treemcp_core)
@@ -24,7 +32,7 @@ target_link_libraries(check-ignore-pattern PRIVATE treemcp_core)
 treemcp_set_warnings(check-ignore-pattern)
 add_test(NAME workspace.ignore-pattern COMMAND check-ignore-pattern)
 
-set(protocol_tests scheduler.workers bootstrap.runtime bootstrap.cli protocol.decoder protocol.stdio search.stdio
+set(protocol_tests scheduler.workers bootstrap.runtime bootstrap.cli bootstrap.broken-grammar protocol.decoder protocol.stdio search.stdio
     workspace.ignore-pattern)
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
@@ -60,6 +68,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_options(check-changed-read PRIVATE "LINKER:--wrap=read")
     treemcp_set_warnings(check-changed-read)
     add_test(NAME workspace.changed-read COMMAND check-changed-read)
+
+    add_executable(check-traversal CheckTraversal.cpp)
+    target_link_libraries(check-traversal PRIVATE treemcp_core)
+    target_link_options(check-traversal PRIVATE "LINKER:--wrap=readdir")
+    treemcp_set_warnings(check-traversal)
+    add_test(NAME workspace.traversal-limits COMMAND check-traversal)
+    set_tests_properties(workspace.traversal-limits PROPERTIES TIMEOUT 30)
 endif()
 
 if(TREEMCP_ENABLE_SANITIZERS)

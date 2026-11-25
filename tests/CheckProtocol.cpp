@@ -9,6 +9,7 @@
 #include <QProcess>
 #include <QSet>
 
+#include <algorithm>
 #include <stdexcept>
 
 namespace {
@@ -111,6 +112,10 @@ void checkRecovery(QProcess& server)
     server.write(
         message("args", "tools/call", QJsonObject { { "name", "languages" }, { "arguments", QJsonArray {} } }));
     expectError(server, "args", -32602);
+    server.write(message("meta", "ping", QJsonObject { { "_meta", 1 } }));
+    expectError(server, "meta", -32602);
+    server.write(message("task", "tools/call", QJsonObject { { "name", "languages" }, { "task", QJsonObject {} } }));
+    expectError(server, "task", -32602);
     server.write(message(
         "extra",
         "tools/call",
@@ -143,19 +148,15 @@ void checkTools(QProcess& server, const QString& schemaPath)
     const QJsonObject data = result.value("structuredContent").toObject();
     const QJsonArray languages = data.value("languages").toArray();
     require(call.value("id") == "call" && data.size() == 1 && languages.size() == 2, "Incorrect language list");
-    for (const auto entry : languages) {
-        const QJsonObject language = entry.toObject();
+    const auto checkLanguage = [](const QJsonObject& entry, const QString& id, const QJsonArray& expected) {
+        const auto extensions = entry.value("extensions").toArray();
         require(
-            language.size() == 2 && language.value("id").isString() && language.value("extensions").isArray(),
-            "Language entry violates output schema");
-        const QJsonArray extensions = language.value("extensions").toArray();
-        for (const auto extension : extensions) {
-            require(extension.isString(), "Invalid extension");
-        }
-    }
-    require(
-        languages.first().toObject().value("id") == "cpp" && languages.last().toObject().value("id") == "python",
-        "Unexpected grammar IDs");
+            entry.size() == 2 && entry.value("id") == id &&
+                std::is_permutation(extensions.begin(), extensions.end(), expected.begin(), expected.end()),
+            "Unexpected grammar ID or file extensions");
+    };
+    checkLanguage(languages.first().toObject(), "cpp", { ".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".h" });
+    checkLanguage(languages.last().toObject(), "python", { ".py", ".pyi" });
     const QJsonArray content = result.value("content").toArray();
     require(
         content.size() == 1 && content.first().toObject().value("type") == "text" &&

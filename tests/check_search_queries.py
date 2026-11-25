@@ -157,6 +157,36 @@ def check_matches(result, expected, source, path, syntax_errors):
     assert Counter(actual) == Counter(expected), (actual, expected)
 
 
+def check_tree(call, root):
+    # The missing semicolon is an anonymous, zero-width child after the identifier.
+    source = "int x"
+    path = "declaration.txt"
+    write(root, path, source)
+    expected = [("translation_unit", 0, True, False, 0, 5), ("declaration", 1, True, False, 0, 5),
+                ("primitive_type", 2, True, False, 0, 3), ("identifier", 2, True, False, 4, 5),
+                (";", 2, False, True, 5, 5)]
+    for selector in [dict(source=source), dict(path=path)]:
+        tree = call("syntax_tree", language="cpp", maxDepth=2, maxNodes=5, **selector)
+        assert tree["hasSyntaxErrors"] and not tree["truncated"], tree
+        assert len(tree["nodes"]) == len(expected), tree
+        for node, (kind, depth, named, missing, start, end) in zip(tree["nodes"], expected):
+            assert node == dict(type=kind, depth=depth, named=named, missing=missing,
+                                range=dict(startByte=start, endByte=end, startRow=0, endRow=0,
+                                           startColumn=start, endColumn=end)), node
+
+
+def check_query_diagnostics(call):
+    escaped = r'((identifier) @x (#eq? @x "a\"b") '
+    cases = [("(identifier", 11, "Invalid query syntax"),
+             ("(identifier (identifier))", 12, "Invalid pattern structure"),
+             ('((identifier) @x (#eq? @unset "v"))', 24, "Unknown capture"),
+             ("; comment only", 0, "Expected a query pattern"),
+             (escaped + "(#wrong? @x))", len(escaped) + 1, "Unsupported predicate or directive: wrong?")]
+    for query, offset, message in cases:
+        result = call("query_validate", query=query)
+        assert result == dict(valid=False, diagnostic=dict(byteOffset=offset, message=message)), result
+
+
 def check_group(call, root, path, language, source, cases, syntax_errors=False):
     write(root, path, source)
     scope = [Path(path).parent.as_posix()]
@@ -178,6 +208,8 @@ if __name__ == "__main__":
     executable = str(Path(sys.argv[1]).resolve())
     with tempfile.TemporaryDirectory() as temp, session(executable, Path(temp)) as call:
         root = Path(temp)
+        check_tree(call, root)
+        check_query_diagnostics(call)
         fields = "!alias !alternative !argument !arguments !attribute !cause !condition !consequence"
         check_group(call, root, "parents/demo.py", "python", "def hello():\n    x = y\n    return f(z)\n", [
             ("expression-parent", "(expression (identifier) @id) @parent",

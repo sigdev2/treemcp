@@ -11,6 +11,10 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 
+if not __debug__:
+    raise RuntimeError("The SDK check requires Python assertions.")
+
+
 async def check(executable: Path, workspace: Path) -> None:
     server = StdioServerParameters(command=str(executable.resolve()), args=["--workspace-root", str(workspace)])
     async with stdio_client(server) as streams:

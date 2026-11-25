@@ -21,8 +21,9 @@ def check_scope(call, selectors, expected, diagnostic=None):
         assert [item["path"] for item in response["diagnostics"]] == ([diagnostic] if diagnostic else []), response
     for result in (single, batch["items"][0]):
         assert not result["truncated"], result
-        actual = {path for path, _ in captures(result)}
-        assert actual == set(expected), (actual ^ set(expected), selectors)
+        actual = captures(result)
+        wanted = sorted((path, "found") for path in expected)
+        assert actual == wanted, (actual, wanted, selectors)
     assert batch["stats"]["filesVisited"] == len(expected), batch
 
 

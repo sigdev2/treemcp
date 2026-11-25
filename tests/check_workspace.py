@@ -11,10 +11,15 @@ import tempfile
 import threading
 
 
+if not __debug__:
+    raise RuntimeError("These tests require Python assertions. Unset PYTHONOPTIMIZE and omit -O.")
+
+
 @contextmanager
-def wire_session(executable, root, *options):
+def wire_session(executable, root, *options, default_root=False):
+    command = [executable, *options] if default_root else [executable, "--workspace-root", root, *options]
     with subprocess.Popen(
-        [executable, "--workspace-root", root, *options], cwd=root.parent,
+        command, cwd=root if default_root else root.parent,
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         text=True, encoding="utf-8",
     ) as child:
@@ -105,7 +110,9 @@ def check_inputs(call, root):
     for path in ("", ".", "..", "src/../a.py", "src/./a.py", "src//a.py", "src/", "/a.py",
                  str(root / "a.py"), "C:relative", "a.py:stream", r"\\.\NUL", r"\\host\share",
                  "aux.txt", "COM\u00b9.py", "a\x00b", "trailing.", "src\\a.py"):
-        assert call("syntax_tree", path=path).get("isError"), repr(path)
+        result = call("syntax_tree", path=path)
+        message = "Expected a relative workspace path" if path else "path is outside its UTF-8 byte limit"
+        assert result.get("isError") and result["content"][0]["text"] == message, (path, result)
         if path != ".":
             assert call(paths=["a.py", path]).get("isError"), repr(path)
     for bad in ({}, {"source": "", "path": "a.py"}, {"paths": []}, {"paths": ["a.py", 4]},
@@ -134,6 +141,55 @@ def check_freshness(call, root):
     assert missing["incomplete"] and missing["diagnostics"]
 
 
+def check_scope_boundaries(executable, root):
+    suffixes = {"cpp": ["cpp", "cc", "cxx", "hpp", "hh", "hxx", "h"], "python": ["py", "pyi"]}
+    for suffix in [*suffixes["cpp"], *suffixes["python"], "txt"]:
+        write(root, f"by_type/sample.{suffix}", "value")
+    write(root, "by_type/uppercase.PY", "uppercase")
+    # A component at depth 64 is eligible. One more component exceeds the traversal bound.
+    parent = "d/" * 63
+    edge = parent + "edge.py"
+    deep = parent + "d/deep.py"
+    for path in [edge, deep, "top.py", "sub/top.py", "sub/nested/top.py"]:
+        write(root, path, "value")
+    with wire_session(executable, root, default_root=True) as (_, _, request):
+        reply = request("tools/call", dict(name="structural_search", arguments=dict(
+            path="top.py", language="python", query="(identifier) @name")))
+        assert captures(reply["structuredContent"]) == [("top.py", "value")], reply
+    with session(executable, root) as call:
+        for lang, extensions in suffixes.items():
+            expected = sorted((f"by_type/sample.{suffix}", "value") for suffix in extensions)
+            assert captures(call(language=lang, paths=["by_type"])) == expected
+        assert captures(call(path="by_type/sample.txt")) == [("by_type/sample.txt", "value")]
+        for glob, paths in [("/top.py", ["top.py"]), ("sub/**", ["sub/nested/top.py", "sub/top.py"])]:
+            assert captures(call(paths=["top.py", "sub"], include=[glob])) == [(p, "value") for p in paths]
+        for glob in ["[", "a\\b", "a\x00b"]:
+            error = call(paths=["sub"], include=[glob])
+            assert error["isError"] and error["content"][0]["text"] == "Invalid workspace glob", error
+        assert captures(call(path=edge)) == [(edge, "value")]
+        invalid = call(paths=[deep])
+        assert invalid["isError"] and invalid["content"][0]["text"] == "Expected a relative workspace path", invalid
+        partial = call(paths=["d"])
+        assert partial["incomplete"] and captures(partial) == [(edge, "value")], partial
+        assert partial["diagnostics"] == [dict(path=deep, message="Workspace path limit exceeded")], partial
+
+        # 255 UTF-16 units precede the supplementary character in each missing path.
+        folder = "a" * 64
+        (root / folder).mkdir()
+        prefix = folder + "/" + "b" * 190
+        missing = prefix + "\U0001f600.py"
+        paths = [missing] + [f"missing{i:02}.py" for i in range(20)]
+        q = dict(id="names", language="python", query="(identifier) @n")
+        for result in [call(paths=paths), call("batch_search", paths=paths, queries=[q])]:
+            assert result["incomplete"] and not result["truncated"], result
+            diagnostics = result["diagnostics"]
+            assert len(diagnostics) == 16 and all(d["message"] == "Workspace path not found" for d in diagnostics)
+            reported = [d["path"] for d in diagnostics]
+            assert len(set(reported)) == 16 and set(reported) <= {prefix, *paths[1:]}, reported
+        for result in [call(paths=[missing]), call("batch_search", paths=[missing], queries=[q])]:
+            assert result["diagnostics"] == [dict(path=prefix, message="Workspace path not found")], result
+
+
 def check_filters(call, root, outside):
     write(root, ".gitignore", "# root\n/blocked/\nskip*.py\n!skip_keep.py\n")
     write(root, "src/.gitignore", "/local.py\nreinclude/**\n!reinclude/ok.py\n")
@@ -149,11 +205,10 @@ def check_filters(call, root, outside):
         import ctypes
         hidden = write(root, "win_hidden.py", "secret\n")
         assert ctypes.windll.kernel32.SetFileAttributesW(str(hidden), 2)
-        with (root / "test.py").open("ab") as writer:
+        with (root / "test.py").open("ab"):
             assert call(path="test.py").get("isError")
             result = call(paths=["."], include=["src/sub/local.py"])
             assert not result["incomplete"] and captures(result) == [("src/sub/local.py", "identifier")], result
-            writer.write(b"")
     else:
         (root / "filelink.py").symlink_to(outside / "outside.py")
         os.mkfifo(root / "fifo.py")
@@ -257,6 +312,10 @@ def check_explicit_access(call, root):
             assert captures(call(path=path)) == [(path, "visible")]
             assert call("syntax_tree", path=path)["nodes"]
             assert call(path="traverse/hidden.py").get("isError")
+            if os.geteuid() != 0:
+                result = call(paths=["traverse"])
+                assert result["incomplete"] and result["matches"] == [], result
+                assert result["diagnostics"] == [dict(path="traverse", message="Cannot enumerate workspace directory")]
         finally:
             folder.chmod(0o755)
 
@@ -268,6 +327,8 @@ def check_directory_swap(call, root, outside):
     redirect = root / "redirect"
     write(live, "outside.py", "inside\n")
     junction_or_link(outside, redirect)
+    assert captures(call(path="race/outside.py")) == [("race/outside.py", "inside")]
+    assert call(path="redirect/outside.py").get("isError")
     stop = threading.Event()
     swapped = threading.Event()
     errors = []
@@ -306,6 +367,7 @@ def main():
     executable = str(Path(sys.argv[1]).resolve())
     with tempfile.TemporaryDirectory() as temp:
         check_search_exclusions(executable, Path(temp) / "exclusions")
+        check_scope_boundaries(executable, Path(temp) / "scope")
         root = Path(temp) / "workspace"
         root.mkdir()
         outside = root.parent / "outside"
@@ -317,10 +379,9 @@ def main():
             check_unicode_names(call, root)
             check_directory_swap(call, root, outside)
             if os.name != "nt":
-                pinned = root.rename(root.parent / "pinned")
+                root.rename(root.parent / "pinned")
                 write(root, "test.py", "wrong_root\n")
                 assert captures(call(path="test.py")) == [("test.py", "identifier")]
-                assert pinned.is_dir()
 
 
 if __name__ == "__main__":

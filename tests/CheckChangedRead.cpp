@@ -1,5 +1,6 @@
 #include "Workspace.hpp"
 
+#include <cerrno>
 #include <QFile>
 #include <QTemporaryDir>
 #include <unistd.h>
@@ -9,6 +10,7 @@ namespace {
 int writer = -1;
 int attempts = 0;
 int mutations = 0;
+int readError = 0;
 
 } // namespace
 
@@ -21,6 +23,10 @@ extern "C" ssize_t __wrap_read(int fd, void* buffer, size_t size)
 {
     if (writer >= 0 && lseek(fd, 0, SEEK_CUR) == 0) {
         ++attempts;
+        if (attempts == 1 && readError != 0) {
+            errno = readError;
+            return -1;
+        }
         if (attempts <= mutations && write(writer, "x", 1) != 1) {
             return -1;
         }
@@ -56,6 +62,27 @@ int main()
                 return 1;
             }
         }
+    }
+    mutations = 0;
+    attempts = 0;
+    readError = EINTR;
+    const auto interrupted = treemcp::readText(root, name, root.child(name), 1024);
+    const auto* bytes = std::get_if<QByteArray>(&interrupted);
+    if (!bytes || *bytes != "axxx" || attempts != 2) {
+        return 1;
+    }
+    attempts = 0;
+    readError = EIO;
+    const auto failed = treemcp::readText(root, name, root.child(name), 1024);
+    const auto* error = std::get_if<QString>(&failed);
+    if (!error || *error != "Cannot read workspace file" || attempts != 1) {
+        return 1;
+    }
+    attempts = 0;
+    const auto stopped = treemcp::readText(root, name, root.child(name), 1024, [] { return true; });
+    const auto* cancelled = std::get_if<QString>(&stopped);
+    if (!cancelled || *cancelled != "Workspace read interrupted" || attempts != 0) {
+        return 1;
     }
     writer = -1;
     return 0;

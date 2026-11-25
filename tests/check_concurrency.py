@@ -88,6 +88,18 @@ def check_races(executable, root):
 
 
 def check_output_backpressure(executable, root):
+    # A disconnected reader must wake the server even while the input pipe remains open.
+    with subprocess.Popen([executable, "--workspace-root", root], stdin=subprocess.PIPE,
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE) as child:
+        try:
+            child.stdout.close()
+            child.stdin.write(b'{"jsonrpc":"2.0","id":1,"method":"ping"}\n')
+            child.stdin.flush()
+            assert child.wait(timeout=5) == 1
+            assert b"stdio" in child.stderr.read()
+        finally:
+            child.kill()
+
     with wire_session(executable, root, "--workers", "1") as (send, receive, _):
         # Leave catalog replies unread while the worker is occupied. The short deadline
         # must publish before the later cancellation, even though stdout is still full.
@@ -126,6 +138,24 @@ def check_output_backpressure(executable, root):
                 child.kill()
 
 
+def check_session_limit(executable, root):
+    def ping(request_id):
+        return json.dumps(dict(jsonrpc="2.0", method="ping", id=request_id)) + "\n"
+
+    # Exercise the exact admission boundary in one pipe exchange.
+    count = 16384
+    frames = "".join(ping(i) for i in range(count)) + ping(count) + ping(0)
+    child = subprocess.run([executable, "--workspace-root", root], input=frames, capture_output=True,
+                           encoding="utf-8", timeout=15, check=True)
+    records = child.stdout.splitlines()
+    assert len(records) == count + 2 and not child.stderr
+    for i, record in enumerate(records[:count]):
+        assert json.loads(record) == {"jsonrpc": "2.0", "id": i, "result": {}}, record
+    for record, expected_id, code in [(records[-2], count, -32001), (records[-1], 0, -32600)]:
+        reply = json.loads(record)
+        assert reply["id"] == expected_id and reply["error"]["code"] == code, reply
+
+
 if __name__ == "__main__":
     with tempfile.TemporaryDirectory() as temp:
         workspace = Path(temp) / "workspace"
@@ -136,3 +166,4 @@ if __name__ == "__main__":
             check_capacity(program, workspace, use_cost)
         check_races(program, workspace)
         check_output_backpressure(program, workspace)
+        check_session_limit(program, workspace)

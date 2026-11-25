@@ -4,7 +4,9 @@ Every build helper runs CTest after compilation. Current checks are:
 
 - `bootstrap.runtime`: both grammar ABIs load; fixtures parse; queries return the
   expected function boundaries; invalid node types are rejected.
-- `bootstrap.cli`: help, version, self-check and failure cases have the expected
+- `bootstrap.broken-grammar` runs the CLI with the C++ grammar registered for
+  Python. It checks the failing exit status, the Python diagnostic and clean stdout.
+- `bootstrap.cli`: help, version and invalid options have the expected
   exit status and diagnostics; none writes to protocol stdout.
 - `protocol.decoder` covers fragmented and oversized frames, strict JSON/UTF-8,
   ambiguous envelopes, integer precision and Unicode ID preservation.
@@ -38,6 +40,9 @@ Every build helper runs CTest after compilation. Current checks are:
 - On Linux, `workspace.changed-read` interposes the first data read on each
   attempt in the test executable. A stable file takes one attempt, one mutation
   returns fresh bytes on the second attempt, and two mutations return a diagnostic.
+- On Linux, `workspace.traversal-limits` supplies directory entries through
+  `readdir`. It checks a real file at positions 100,000 and 100,001, a listing
+  failure after a successful read, and type lookup when an entry has no type hint.
 
 The self-check uses explicit conditions, so validation remains active in Release.
 It is a dependency integration check, not MCP, security or performance acceptance.
@@ -58,6 +63,62 @@ Performance measurements require a correctness oracle, fixed corpus revisions an
 a hardware/software manifest. Compare sequential searches, concurrent searches and
 one batch using equivalent queries and limits. Report OS cache conditions separately
 from process warmup; no application content cache is allowed.
+
+## Coverage audit, 2026-11-21
+
+The baseline was commit `492ec28`. Each measurement used the full CTest suite
+with Python available, a Debug build and fresh GCC counters. The figures cover
+executable lines under `src/` compiled into `treemcp_core` and `structural-mcp`.
+Branch counts include the outcomes emitted by gcov for those objects, excluding
+arcs marked as throws. Platform-specific compilation changes the denominator.
+Worker scheduling can change individual hit counts between runs.
+
+CTest passed 14/14 in Windows Debug and Release, 17/17 in Linux Debug and
+Release, and 18/18 with Linux ASan/UBSan. The Windows Release binary also
+passed the MCP Python SDK 1.26.0 checks and the ignore fixture comparison
+with Git 2.55.0.windows.5.
+
+| Platform | Lines before | Lines after | Branch outcomes before | Branch outcomes after |
+| --- | ---: | ---: | ---: | ---: |
+| Windows, MinGW 11.2 | 1,904/2,052 (92.79%) | 1,939/2,052 (94.49%) | 2,829/3,465 (81.65%) | 2,925/3,465 (84.42%) |
+| Linux/WSL, GCC 11.4 | 1,850/1,985 (93.20%) | 1,915/1,985 (96.47%) | 2,773/3,376 (82.14%) | 2,916/3,376 (86.37%) |
+
+The review found a duplicate successful self-check invocation, an extension
+check that accepted an empty list, and an ignore check that discarded duplicate
+matches. The corpus comparison now also checks each sparse hit against its
+known path, capture, range and flags. The Python suites fail immediately if
+the interpreter disables assertions.
+
+| Contract | Additional evidence |
+| --- | --- |
+| Protocol and transport | Exact depth, width and UTF-8 ID limits, mixed response envelopes, 16,384 accepted IDs followed by overload, and shutdown on a disconnected output pipe. |
+| Grammars and single-file tools | CLI failure for a misregistered grammar, exact extension lists, diagnostic offsets, and preorder, ranges and missing-token flags for an incomplete declaration. |
+| Workspace | Startup directory, extension selection, anchored globs, depth 64/65, bounded and Unicode-safe diagnostics, directory-entry limit, interrupted reads and I/O failure. |
+| Batch | Exact global top-K membership, ties on the first capture, per-item isolation after parse or repeated-capture failures, and retention of completed matches at deadline publication. |
+
+In an isolated Linux build, three deliberate changes admitted a 1,025-byte ID,
+cleared the missing-token flag, and capped workspace diagnostics at 15. The
+three corresponding baseline suites passed against that binary. The updated
+decoder, search and workspace suites each failed on the affected behavior.
+The 10,000-file corpus remains the most expensive fixture (12.13 seconds on the
+instrumented Windows run). The Linux directory-entry boundary test took 0.73
+seconds using a generated directory stream.
+
+Residual paths include allocation and thread startup failures, resource-loading
+errors, OS-specific handle failures and timing-dependent cancellation paths.
+External client acceptance and long-running stress scenarios are tracked in
+the [release criteria](acceptance.md).
+
+To reproduce a measurement, use a fresh build directory, Python 3.9+ and the
+gcov supplied with the compiler. On Windows select the `windows-debug` preset
+and run the reporter with `python`. Use `--gcov` to select the matching binary.
+
+```sh
+cmake --preset linux-debug -B build/coverage '-DCMAKE_CXX_FLAGS=--coverage -fprofile-update=atomic'
+cmake --build build/coverage
+ctest --test-dir build/coverage --output-on-failure
+python3 scripts/test-coverage.py build/coverage --missed
+```
 
 ## Concurrency verification
 

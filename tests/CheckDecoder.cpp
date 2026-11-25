@@ -15,6 +15,18 @@ bool checkFrames()
         return true;
     };
     const QByteArray limit(treemcp::Framer::MAX_FRAME_BYTES, 'x');
+    treemcp::Framer interrupted;
+    if (interrupted.feed(
+            "first\nsecond\n",
+            [&](QByteArrayView frame) {
+                records.append(frame.toByteArray());
+                return false;
+            }) ||
+        records != QList<QByteArray> { "first" })
+    {
+        return false;
+    }
+    records.clear();
     return framer.feed("one\ntw", collect) && framer.feed("o\r\n", collect) && framer.feed(limit, collect) &&
         framer.feed("\n", collect) && framer.feed(limit, collect) && framer.feed("x", collect) &&
         framer.feed("bad\nok\n{\r}\npartial", collect) && framer.finish(collect) && framer.finish(collect) &&
@@ -28,12 +40,54 @@ bool checkError(const QByteArray& frame, int code)
     return reply != nullptr && reply->value("error").toObject().value("code").toInt() == code;
 }
 
+bool checkBounds()
+{
+    using namespace treemcp::JsonRpc;
+    const auto request = [](const QByteArray& id, const QByteArray& params) {
+        return R"({"jsonrpc":"2.0","method":"ping","id":)" + id + R"(,"params":)" + params + '}';
+    };
+    const auto rejected = [&](const QByteArray& frame, const QJsonValue& expectedId) {
+        const auto decoded = decode(frame);
+        const auto* reply = std::get_if<QJsonObject>(&decoded);
+        return reply && reply->value("id") == expectedId && reply->value("error").toObject().value("code") == -32600;
+    };
+    const QByteArray id = QString(512, QChar(0xe9)).toUtf8();
+    const auto stringId = decode(request('"' + id + '"', "{}"));
+    const auto* accepted = std::get_if<Request>(&stringId);
+    if (!accepted || accepted->id.toString().toUtf8() != id ||
+        !rejected(request('"' + id + "x\"", "{}"), QJsonValue::Undefined) ||
+        !rejected(request("9223372036854775808", "{}"), QJsonValue::Undefined))
+    {
+        return false;
+    }
+    QJsonObject members;
+    for (int i = 0; i < 1024; ++i) {
+        members.insert(QString::number(i), i);
+    }
+    const auto wide = decode(request("7", QJsonDocument(members).toJson(QJsonDocument::Compact)));
+    const auto* full = std::get_if<Request>(&wide);
+    if (!full || full->params != members) {
+        return false;
+    }
+    members.insert("extra", true);
+    const auto nested = [&](int arrays) {
+        return request("7", QByteArray(arrays, '[') + "null" + QByteArray(arrays, ']'));
+    };
+    return rejected(request("7", QJsonDocument(members).toJson(QJsonDocument::Compact)), 7) &&
+        std::holds_alternative<Request>(decode(nested(63))) && rejected(nested(64), 7) &&
+        rejected(R"({"jsonrpc":"2.0","id":7,"params":{}})", 7) &&
+        rejected(R"({"jsonrpc":"2.0","id":7,"result":{},"error":{"code":1,"message":"error"}})", 7) &&
+        rejected(R"({"jsonrpc":"2.0","id":7,"method":"ping","result":{}})", 7) &&
+        std::holds_alternative<std::monostate>(
+               decode(R"({"jsonrpc":"2.0","id":7,"error":{"code":1,"message":"error"}})"));
+}
+
 } // namespace
 
 int main()
 {
     using namespace treemcp::JsonRpc;
-    if (!checkFrames() || !checkError("true", -32600) || !checkError("[]", -32600) ||
+    if (!checkFrames() || !checkBounds() || !checkError("true", -32600) || !checkError("[]", -32600) ||
         !checkError(R"({"jsonrpc":"2.0","id":null,"method":"ping"})", -32600) ||
         !checkError(R"({"jsonrpc":"2.0","id":1.25,"method":"ping"})", -32600) ||
         !checkError(R"({"jsonrpc":"2.0","id":1,"\u0069d":2,"method":"ping"})", -32600) ||
