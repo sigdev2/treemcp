@@ -73,7 +73,7 @@ void handshake(QProcess& server)
         reply.value("id") == "init" && result.value("protocolVersion") == "2025-11-25" &&
             result.value("capabilities").toObject() ==
                 QJsonObject { { "tools", QJsonObject {} } }&& result.value("serverInfo").toObject().value("name") ==
-                "structural-mcp",
+                "treemcp",
         "Unexpected handshake");
     server.write(message(3, "tools/list"));
     expectError(server, 3, -32002);

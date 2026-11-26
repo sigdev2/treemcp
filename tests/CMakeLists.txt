@@ -1,8 +1,8 @@
 add_test(NAME bootstrap.runtime
-    COMMAND "${CMAKE_COMMAND}" "-DPROGRAM=$<TARGET_FILE:structural-mcp>" -DSELF_CHECK=ON
+    COMMAND "${CMAKE_COMMAND}" "-DPROGRAM=$<TARGET_FILE:treemcp>" -DSELF_CHECK=ON
         -P "${CMAKE_CURRENT_SOURCE_DIR}/CheckCli.cmake")
 add_test(NAME bootstrap.cli
-    COMMAND "${CMAKE_COMMAND}" "-DPROGRAM=$<TARGET_FILE:structural-mcp>"
+    COMMAND "${CMAKE_COMMAND}" "-DPROGRAM=$<TARGET_FILE:treemcp>"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/CheckCli.cmake")
 add_executable(check-broken-grammar ../src/main.cpp MisregisteredGrammar.cpp)
 target_link_libraries(check-broken-grammar PRIVATE treemcp_core)
@@ -18,9 +18,9 @@ add_test(NAME protocol.decoder COMMAND check-decoder)
 add_executable(check-protocol CheckProtocol.cpp CheckSearch.cpp)
 target_link_libraries(check-protocol PRIVATE Qt6::Core)
 treemcp_set_warnings(check-protocol)
-add_test(NAME protocol.stdio COMMAND check-protocol "$<TARGET_FILE:structural-mcp>"
+add_test(NAME protocol.stdio COMMAND check-protocol "$<TARGET_FILE:treemcp>"
     "${PROJECT_SOURCE_DIR}/schemas")
-add_test(NAME search.stdio COMMAND check-protocol "$<TARGET_FILE:structural-mcp>" --search)
+add_test(NAME search.stdio COMMAND check-protocol "$<TARGET_FILE:treemcp>" --search)
 
 add_executable(check-scheduler CheckScheduler.cpp)
 target_link_libraries(check-scheduler PRIVATE treemcp_core)
@@ -37,19 +37,19 @@ set(protocol_tests scheduler.workers bootstrap.runtime bootstrap.cli bootstrap.b
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
     add_test(NAME search.cli COMMAND "${Python3_EXECUTABLE}"
-        -B "${CMAKE_CURRENT_SOURCE_DIR}/check_cli.py" "$<TARGET_FILE:structural-mcp>")
+        -B "${CMAKE_CURRENT_SOURCE_DIR}/check_cli.py" "$<TARGET_FILE:treemcp>")
     add_test(NAME search.queries COMMAND "${Python3_EXECUTABLE}"
-        -B "${CMAKE_CURRENT_SOURCE_DIR}/check_search_queries.py" "$<TARGET_FILE:structural-mcp>")
+        -B "${CMAKE_CURRENT_SOURCE_DIR}/check_search_queries.py" "$<TARGET_FILE:treemcp>")
     add_test(NAME workspace.stdio COMMAND "${Python3_EXECUTABLE}"
-        "${CMAKE_CURRENT_SOURCE_DIR}/check_workspace.py" "$<TARGET_FILE:structural-mcp>")
+        "${CMAKE_CURRENT_SOURCE_DIR}/check_workspace.py" "$<TARGET_FILE:treemcp>")
     add_test(NAME workspace.ignore COMMAND "${Python3_EXECUTABLE}"
-        -B "${CMAKE_CURRENT_SOURCE_DIR}/check_ignore.py" "$<TARGET_FILE:structural-mcp>")
+        -B "${CMAKE_CURRENT_SOURCE_DIR}/check_ignore.py" "$<TARGET_FILE:treemcp>")
     foreach(suite correctness corpus)
         add_test(NAME batch.${suite} COMMAND "${Python3_EXECUTABLE}"
-            -B "${CMAKE_CURRENT_SOURCE_DIR}/check_batch.py" "$<TARGET_FILE:structural-mcp>" "${suite}")
+            -B "${CMAKE_CURRENT_SOURCE_DIR}/check_batch.py" "$<TARGET_FILE:treemcp>" "${suite}")
     endforeach()
     add_test(NAME scheduler.stdio COMMAND "${Python3_EXECUTABLE}"
-        -B "${CMAKE_CURRENT_SOURCE_DIR}/check_concurrency.py" "$<TARGET_FILE:structural-mcp>")
+        -B "${CMAKE_CURRENT_SOURCE_DIR}/check_concurrency.py" "$<TARGET_FILE:treemcp>")
     list(APPEND protocol_tests scheduler.stdio search.cli search.queries workspace.stdio workspace.ignore batch.correctness batch.corpus)
 endif()
 

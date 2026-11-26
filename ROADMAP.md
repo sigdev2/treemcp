@@ -91,12 +91,12 @@ Version 0.1.0 is the bootstrap; 1.0.0 requires all release gates below.
 
 ### One-shot `call` command and structural-search skill
 
-- [x] Add `structural-mcp [--workspace-root DIR] call TOOL [--args JSON|-]`
+- [x] Add `treemcp [--workspace-root DIR] call TOOL [--args JSON|-]`
   to `src/main.cpp`. Run one tool and exit. Use the current directory by default
   and honor the existing `--ignore-dir` and worker options. With no subcommand,
   start the stdio server as today. Show both modes in `--help`.
 - [x] Accept one UTF-8 JSON object inline, or read it to EOF from stdin with
-  `--args -`. Omitted arguments mean `{}`, so `structural-mcp call languages`
+  `--args -`. Omitted arguments mean `{}`, so `treemcp call languages`
   returns immediately even with stdin open. Bound the argument input to 1 MiB
   while reading and diagnose malformed JSON, extra arguments and conflicting modes.
 - [x] Dispatch through `Tools::call` and its validated runner using the existing

@@ -17,7 +17,7 @@ def main():
     objects = args.build.resolve() / "CMakeFiles"
     lines = defaultdict(dict)
     branches = defaultdict(list)
-    for target in ("treemcp_core", "structural-mcp"):
+    for target in ("treemcp_core", "treemcp"):
         notes = sorted((objects / (target + ".dir") / "src").rglob("*.gcno"))
         if not notes:
             parser.error(f"No gcov notes for {target}. Configure a fresh GCC build with --coverage.")

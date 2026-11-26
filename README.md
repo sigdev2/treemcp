@@ -28,7 +28,7 @@ CLI from any project.
 ## Use with MCP
 
 1. Add a local stdio server in your MCP client. Use the absolute path to
-   `structural-mcp` (`structural-mcp.exe` on Windows) and pass `--workspace-root`
+   `treemcp` (`treemcp.exe` on Windows) and pass `--workspace-root`
    followed by the project directory's absolute path. [MCP setup](docs/getting-started/README.md#mcp-stdio)
 2. Once connected, try asking your assistant, “Use TreeMCP to find Python function
    definitions in `src` and show their file locations.”
@@ -38,8 +38,8 @@ For OpenCode v2, TreeMCP includes a project configuration and a
 
 ## Use from the CLI
 
-From your project directory, run `structural-mcp call languages` to list the
-available languages. To search, run `structural-mcp call structural_search --args -`
+From your project directory, run `treemcp call languages` to list the
+available languages. To search, run `treemcp call structural_search --args -`
 and supply the query arguments as JSON on stdin. The CLI uses the same tool
 arguments as MCP and prints the result as JSON for use in scripts.
 [CLI commands and examples](docs/getting-started/README.md#one-shot-tool-calls)

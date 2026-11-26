@@ -2,7 +2,7 @@
 
 Use the executable from the TreeMCP server configuration. The shipped
 configuration uses `TREEMCP_EXECUTABLE`. If there is no configured executable,
-use `structural-mcp` from PATH if available.
+use `treemcp` from PATH if available.
 
 Use the same workspace root and directory exclusions as the MCP server.
 OpenCode resolves the server's `cwd` relative to the active project directory
@@ -26,7 +26,7 @@ OpenCode can run Bash on Windows.
 ## Single-file search in Bash or another POSIX shell
 
 ```sh
-"${TREEMCP_EXECUTABLE:-structural-mcp}" --workspace-root . call structural_search --args '{"language":"python","path":"src/worker.py","query":"(function_definition name: (identifier) @name)"}'
+"${TREEMCP_EXECUTABLE:-treemcp}" --workspace-root . call structural_search --args '{"language":"python","path":"src/worker.py","query":"(function_definition name: (identifier) @name)"}'
 ```
 
 ## Single-file search in PowerShell
@@ -34,7 +34,7 @@ OpenCode can run Bash on Windows.
 ```powershell
 $workspace = (Get-Location).Path
 $treemcp = $env:TREEMCP_EXECUTABLE
-if (-not $treemcp) { $treemcp = 'structural-mcp' }
+if (-not $treemcp) { $treemcp = 'treemcp' }
 $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 @'
 {"language":"python","path":"src/worker.py","query":"(function_definition name: (identifier) @name)","maxMatches":5}
@@ -45,7 +45,7 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
 ```sh
 workspace="$PWD"
-treemcp="${TREEMCP_EXECUTABLE:-structural-mcp}"
+treemcp="${TREEMCP_EXECUTABLE:-treemcp}"
 "$treemcp" --workspace-root "$workspace" call batch_search --args - <<'JSON'
 {
   "paths": ["src"],

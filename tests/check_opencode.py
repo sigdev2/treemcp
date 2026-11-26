@@ -117,7 +117,7 @@ def exercise_fallback(cli, workspace, env, config):
     assert any('"text":"refresh"' in out and '"path":"src/worker.py"' in out for out in output), output
     assert "refresh" in answer and "src/worker.py" in answer, answer
 
-    missing_executable = workspace / "missing-structural-mcp"
+    missing_executable = workspace / "missing-treemcp"
     missing = dict(env, TREEMCP_EXECUTABLE=str(missing_executable))
     output, answer = fallback_calls(cli, workspace, missing, config)
     launch_error = re.compile(r"no such file or directory|command not found|is not recognized", re.IGNORECASE)

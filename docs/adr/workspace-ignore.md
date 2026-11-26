@@ -71,5 +71,5 @@ tracked files and changes between requests.
 
 The `workspace.ignore` CTest runs the [reference fixtures](../../tests/fixtures/workspace-ignore.json)
 offline. To compare the same decisions with an installed Git and exercise
-tracked files, run `python -B tests/check_ignore.py <structural-mcp-executable> --git`
+tracked files, run `python -B tests/check_ignore.py <treemcp-executable> --git`
 in the build environment.

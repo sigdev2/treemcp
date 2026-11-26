@@ -10,7 +10,7 @@ do not fetch dependencies. Python, Node.js and the Tree-sitter CLI are not requi
 - [Local configuration](configuration.md)
 - [Installation and deployment](deployment.md)
 
-The binary is named `structural-mcp`. Use `--help` for usage and
+The binary is named `treemcp`. Use `--help` for usage and
 `--version` for the build version. The `--self-check` option parses an in-memory fixture for each language,
 executes a query, checks capture boundaries and verifies invalid-query rejection.
 It runs through a Qt Core event loop and never accesses project source files.
@@ -18,7 +18,7 @@ It runs through a Qt Core event loop and never accesses project source files.
 ## One-shot tool calls
 
 ```text
-structural-mcp [--workspace-root DIR] call TOOL [--args JSON|-]
+treemcp [--workspace-root DIR] call TOOL [--args JSON|-]
 ```
 
 Use any of the five tool names with the same argument object as in MCP.
@@ -28,9 +28,9 @@ The CLI accepts up to 1 MiB of argument JSON. When `--args` is omitted,
 the tool receives an empty object.
 
 ```powershell
-structural-mcp call languages
+treemcp call languages
 '{"language":"cpp","path":"src/main.cpp","query":"(function_definition) @fn"}' |
-    structural-mcp --workspace-root . call structural_search --args -
+    treemcp --workspace-root . call structural_search --args -
 ```
 
 Exit 0 returns a single UTF-8 JSON line with the tool result. Check

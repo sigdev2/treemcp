@@ -13,7 +13,7 @@ Windows:
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1 windows-release
 cmake --install build/windows-release --prefix install/windows-release --strip
-./install/windows-release/bin/structural-mcp.exe --self-check
+./install/windows-release/bin/treemcp.exe --self-check
 ```
 
 Linux, including inside a WSL shell:
@@ -21,7 +21,7 @@ Linux, including inside a WSL shell:
 ```bash
 bash scripts/build-linux.sh linux-release
 cmake --install build/linux-release --prefix install/linux-release --strip
-./install/linux-release/bin/structural-mcp --self-check
+./install/linux-release/bin/treemcp --self-check
 ```
 
 Use `--prefix` to choose another installation directory. For a custom preset,

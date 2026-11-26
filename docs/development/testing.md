@@ -72,7 +72,7 @@ from process warmup; no application content cache is allowed.
 
 The baseline was commit `492ec28`. Each measurement used the full CTest suite
 with Python available, a Debug build and fresh GCC counters. The figures cover
-executable lines under `src/` compiled into `treemcp_core` and `structural-mcp`.
+executable lines under `src/` compiled into `treemcp_core` and `treemcp`.
 Branch counts include the outcomes emitted by gcov for those objects, excluding
 arcs marked as throws. Platform-specific compilation changes the denominator.
 Worker scheduling can change individual hit counts between runs.
@@ -182,7 +182,7 @@ ping, discovery, calls, JSON Schema validation and shutdown with the
 
 To reproduce the SDK check, use a development Python environment with
 `mcp==1.26.0`, make the server's runtime libraries discoverable, then run
-`python tests/check_sdk.py path/to/structural-mcp` from the checkout root.
+`python tests/check_sdk.py path/to/treemcp` from the checkout root.
 The CTest suite uses Qt Core and runs offline.
 
 ## Bootstrap verification

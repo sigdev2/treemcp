@@ -60,11 +60,11 @@ target_link_libraries(treemcp_core PUBLIC Qt6::Core tree_sitter ${grammar_target
 target_link_libraries(treemcp_core PRIVATE yyjson Threads::Threads)
 treemcp_set_warnings(treemcp_core)
 
-add_executable(structural-mcp src/main.cpp)
+add_executable(treemcp src/main.cpp)
 set(tool_descriptors schemas/languages.json schemas/query_validate.json schemas/syntax_tree.json schemas/structural_search.json schemas/batch_search.json)
-qt_add_resources(structural-mcp "tool_catalog" PREFIX "/" FILES ${tool_descriptors})
-target_link_libraries(structural-mcp PRIVATE treemcp_core)
-treemcp_set_warnings(structural-mcp)
+qt_add_resources(treemcp "tool_catalog" PREFIX "/" FILES ${tool_descriptors})
+target_link_libraries(treemcp PRIVATE treemcp_core)
+treemcp_set_warnings(treemcp)
 
 if(BUILD_TESTING)
     add_subdirectory(tests)

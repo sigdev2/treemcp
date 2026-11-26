@@ -119,7 +119,7 @@ int runCall(
 int main(int argc, char* argv[])
 {
     QCoreApplication application(argc, argv);
-    QCoreApplication::setApplicationName(QStringLiteral("structural-mcp"));
+    QCoreApplication::setApplicationName(QStringLiteral("treemcp"));
     QCoreApplication::setApplicationVersion(QString::fromLatin1(treemcp::VERSION));
 
     QCommandLineParser arguments;
@@ -172,7 +172,7 @@ int main(int argc, char* argv[])
         return 0;
     }
     if (arguments.isSet(versionOption)) {
-        diagnostics << "structural-mcp " << treemcp::VERSION << '\n';
+        diagnostics << "treemcp " << treemcp::VERSION << '\n';
         return 0;
     }
     const auto positional = arguments.positionalArguments();

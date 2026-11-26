@@ -3,7 +3,7 @@ name: structural-search
 description: Find declarations, calls and other syntax patterns with TreeMCP when searching source files by their code structure.
 ---
 
-Use the advertised TreeMCP tools when the MCP server is reachable. If those tools are absent or the client reports a connection failure, first read [references/cli-call.md](references/cli-call.md) using its path in the loaded skill's file list. Then follow that guide to run the equivalent `structural-mcp call` in the active workspace.
+Use the advertised TreeMCP tools when the MCP server is reachable. If those tools are absent or the client reports a connection failure, first read [references/cli-call.md](references/cli-call.md) using its path in the loaded skill's file list. Then follow that guide to run the equivalent `treemcp call` in the active workspace.
 
 Discover the grammar IDs and suffixes with `languages`. For a shared `.h` suffix, select `c` or `cpp` from the project's language or the user's request. If the distinction matters and the language is unknown, ask or report both interpretations separately.
 

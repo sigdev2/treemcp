@@ -1,14 +1,14 @@
 option(TREEMCP_BUNDLE_RUNTIME "Install shared runtime dependencies alongside the executable" ON)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    set_target_properties(structural-mcp PROPERTIES
+    set_target_properties(treemcp PROPERTIES
         BUILD_RPATH_USE_ORIGIN ON
         INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
     # An inherited RPATH also resolves dependencies of copied third-party libraries.
-    target_link_options(structural-mcp PRIVATE "LINKER:--disable-new-dtags")
+    target_link_options(treemcp PRIVATE "LINKER:--disable-new-dtags")
 endif()
 
-install(TARGETS structural-mcp RUNTIME_DEPENDENCY_SET treemcp_runtime
+install(TARGETS treemcp RUNTIME_DEPENDENCY_SET treemcp_runtime
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
 if(TREEMCP_BUNDLE_RUNTIME)

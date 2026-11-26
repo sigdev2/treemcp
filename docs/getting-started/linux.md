@@ -19,7 +19,7 @@ Load the settings and build from the repository root in your Linux or WSL shell:
 source .local/linux.sh
 bash scripts/build-linux.sh linux-debug
 bash scripts/build-linux.sh linux-release
-./build/linux-release/structural-mcp --self-check
+./build/linux-release/treemcp --self-check
 ```
 
 The preset argument defaults to `linux-debug`. Each run configures, builds and

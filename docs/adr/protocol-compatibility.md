@@ -1,6 +1,6 @@
 # MCP protocol compatibility
 
-TreeMCP targets **2025-11-25** over stdio. Clients launch `structural-mcp` with
+TreeMCP targets **2025-11-25** over stdio. Clients launch `treemcp` with
 no arguments. Changing the pin requires updating the handshake, wire tests and
 this record together. [Published specification](https://modelcontextprotocol.io/specification/2025-11-25)
 

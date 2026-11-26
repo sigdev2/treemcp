@@ -31,7 +31,7 @@ error `-32001`. Ping and discovery remain available when admission is full.
 
 ## Workspace files
 
-Start the server with `structural-mcp --workspace-root <directory>`. The default
+Start the server with `treemcp --workspace-root <directory>`. The default
 root is the process working directory at startup. Use `path` to select one regular
 file with the caller's explicit grammar, regardless of its extension. For example,
 `{"language":"cpp","path":"src/main.cpp","maxDepth":2}` inspects a file with `syntax_tree`.
@@ -74,7 +74,7 @@ A failed single-file read returns a tool error.
   Matching is case-sensitive. The server skips the directory before listing its
   contents or reading its ignore files, even when a selector points inside it.
   To replace the defaults, pass one `--ignore-dir <name>` per directory name at
-  startup, for example `structural-mcp --ignore-dir generated --ignore-dir vendor`.
+  startup, for example `treemcp --ignore-dir generated --ignore-dir vendor`.
   Single-file `path` requests can still open files inside these directories.
 - `include` selects files. `exclude` can prune files or directories. Both take
   up to 64 case-sensitive globs of 512 UTF-8 bytes each and require `paths`.

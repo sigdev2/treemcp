@@ -11,8 +11,8 @@ The project-local configuration and `structural-search` skill target **OpenCode
    `opencode --version` reports `opencode v2.1.4`.
 2. [Install TreeMCP](../getting-started/deployment.md). Set `TREEMCP_EXECUTABLE`
    to the absolute path of the installed binary in the environment that starts
-   OpenCode. Use `export TREEMCP_EXECUTABLE=/opt/treemcp/bin/structural-mcp` on
-   Linux or `$env:TREEMCP_EXECUTABLE = 'C:\TreeMCP\bin\structural-mcp.exe'`
+   OpenCode. Use `export TREEMCP_EXECUTABLE=/opt/treemcp/bin/treemcp` on
+   Linux or `$env:TREEMCP_EXECUTABLE = 'C:\TreeMCP\bin\treemcp.exe'`
    in PowerShell.
 3. Copy the [skill directory](../../integrations/opencode-v2/.opencode/skills/structural-search)
    into `.opencode/skills/` in the target project. Its resulting path must be
@@ -63,7 +63,7 @@ POSIX shell syntax, with Git Bash on Windows. The TreeMCP build must be able
 to resolve its Qt and compiler runtime libraries.
 
 ```sh
-python tests/check_opencode.py /absolute/path/to/structural-mcp \
+python tests/check_opencode.py /absolute/path/to/treemcp \
   --client /absolute/path/to/opencode --base-url http://127.0.0.1:8080/v1 --model local-model
 ```
 
@@ -75,7 +75,7 @@ can vary across runs.
 
 ## Original MCP verification record
 
-The Windows x64 Release build of `structural-mcp 0.1.0` used Qt 6.4.1 and MinGW
+The original Windows x64 Release build of TreeMCP 0.1.0 used Qt 6.4.1 and MinGW
 11.2. Its executable SHA-256 was
 `4b4844bfac60c62590c163c79e79d176e64ef5c83fa908697f42f66ee864b1f2`.
 OpenCode 2.1.4 ran the project configuration with a local Gemma 4 26B A4B
