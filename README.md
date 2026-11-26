@@ -1,27 +1,55 @@
 # TreeMCP
 
-TreeMCP is a local code search server for AI coding assistants. It is designed to
-find code by its structure, such as functions, classes and calls, and return precise
-locations in the current project files. Several related searches can share one request.
+**Search code by its structure, from your AI coding assistant or terminal.**
 
-The project is read-only by design: no source changes, persistent indexes or saved
-search history. Structural matches describe syntax, not resolved symbols or program behavior.
+TreeMCP uses Tree-sitter queries to find functions, classes, calls, and other
+syntax patterns and return their exact locations in your project.
 
-Run `structural-mcp --workspace-root <directory>` to serve that workspace over MCP stdio.
-With no arguments the server binds its starting directory. The
-`languages` tool lists the compiled C, C++, Rust, Python, JavaScript, TypeScript, TSX, Go and Java grammars. Use `query_validate`
-to check a Tree-sitter query, `syntax_tree` to inspect a snippet and `structural_search`
-to find captures in inline source, a file or a filtered directory tree. Use `batch_search` to run several
-queries over the same files in one pass. [Tool examples and limits](docs/reference/tools.md)
+[Install](#install) · [Use with MCP](#use-with-mcp) · [Use from the CLI](#use-from-the-cli) · [Documentation](#documentation) · [License](#license)
 
-Run `structural-mcp --workspace-root <directory> call languages` for a
-one-shot command-line call. Use `--args -` to supply a JSON object on stdin.
-[CLI usage](docs/getting-started/README.md#one-shot-tool-calls)
+## Why TreeMCP?
 
-- [Documentation](docs/README.md) and [build instructions](docs/getting-started/README.md)
-- [OpenCode v2 installation and examples](docs/integrations/opencode-v2.md)
-- [Roadmap and TODO](ROADMAP.md)
-- [C++ style guide](StyleGuide.CPP.md) and [clang-format rules](.clang-format)
-- [MIT license](LICENSE)
+- **Match code structure.** Find function definitions, method calls, or
+  imports even when their formatting varies.
+- **Search your current workspace.** TreeMCP reads your files locally and
+  searches them as they are, with no index to build or refresh.
+- **Run related searches together.** Find several kinds of matches in one pass
+  over the same files.
 
-Project documentation, messages and comments are written in English.
+TreeMCP supports **C, C++, Rust, Python, JavaScript, TypeScript, TSX, Go, and Java**.
+
+## Install
+
+Build from source with CMake 3.22+, a C++20 compiler, and Qt Core 6.4.1+.
+After installation, add the installed `bin` directory to your `PATH` to use the
+CLI from any project.
+[Windows build](docs/getting-started/windows.md) · [Linux and WSL build](docs/getting-started/linux.md) · [Installation](docs/getting-started/deployment.md)
+
+## Use with MCP
+
+1. Add a local stdio server in your MCP client. Use the absolute path to
+   `structural-mcp` (`structural-mcp.exe` on Windows) and pass `--workspace-root`
+   followed by the project directory's absolute path. [MCP setup](docs/getting-started/README.md#mcp-stdio)
+2. Once connected, try asking your assistant, “Use TreeMCP to find Python function
+   definitions in `src` and show their file locations.”
+
+For OpenCode v2, TreeMCP includes a project configuration and a
+`structural-search` skill. [OpenCode setup and examples](docs/integrations/opencode-v2.md)
+
+## Use from the CLI
+
+From your project directory, run `structural-mcp call languages` to list the
+available languages. To search, run `structural-mcp call structural_search --args -`
+and supply the query arguments as JSON on stdin. The CLI uses the same tool
+arguments as MCP and prints the result as JSON for use in scripts.
+[CLI commands and examples](docs/getting-started/README.md#one-shot-tool-calls)
+
+## Documentation
+
+- [Tool reference and query examples](docs/reference/tools.md)
+- [Architecture and implementation](docs/internals/README.md)
+- [Documentation index](docs/README.md) · [Roadmap](ROADMAP.md)
+
+## License
+
+TreeMCP is released under the [MIT License](LICENSE).
