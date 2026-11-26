@@ -3,7 +3,7 @@
 | Area | Required behavior | Current status |
 | --- | --- | --- |
 | Language and Qt | C++20, Qt Core only | Implemented |
-| Parser dependencies | Embedded, pinned Tree-sitter and compiled grammars | C++ and Python included |
+| Parser dependencies | Embedded, pinned Tree-sitter and compiled grammars | Nine compiled languages, including separate TypeScript and TSX grammars |
 | Search language | Tree-sitter S-expression queries | Single and batch compilation, validation and execution |
 | Protocol | stdio, UTF-8 NDJSON, JSON-RPC, one stdout writer | MCP 2025-11-25 on Windows and POSIX |
 | Tools | languages, query_validate, syntax_tree, structural_search, batch_search | All five available |
@@ -13,7 +13,7 @@
 | Scheduling | Bounded admission, fair workers and aggregate batch budgets | Request and cost limits, shared workers, alternating FIFO queues |
 | Cancellation | Cooperative cancellation, deadlines and child cleanup | Implemented for queued and running single and batch searches |
 | Results | Bounded, precise ranges and deterministic sorted selection | Single-file ranges and deterministic batch top-K implemented |
-| Client integration | Tested OpenCode v2 skill and configuration | Planned |
+| Client integration | OpenCode v2 skill and configuration | [2.1.4 standalone direct tools](../integrations/opencode-v2.md) |
 
 ## Acceptance groups
 
@@ -35,12 +35,6 @@ executable suites and the evidence required for each:
 
 ## Open contract decisions
 
-These must be settled before publishing stable schemas:
-
-1. Define how an administrator may select batch sizes above the default 16 and
-   below the hard cap 64. Advertised schemas must reflect the active limit.
-2. Pin and test the [OpenCode configuration and skill format](../integrations/opencode-v2.md)
-   before distributing a working client configuration.
-
-Resolve these choices in architecture decisions and tests. Do not silently treat
-an illustrative API example as a verified implementation contract.
+Before publishing stable schemas, define how an administrator may select batch
+sizes above the default 16 and below the hard cap 64. Advertised schemas must
+reflect the active limit.

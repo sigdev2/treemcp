@@ -9,12 +9,13 @@ search history. Structural matches describe syntax, not resolved symbols or prog
 
 Run `structural-mcp --workspace-root <directory>` to serve that workspace over MCP stdio.
 With no arguments the server binds its starting directory. The
-`languages` tool lists the compiled C++ and Python grammars. Use `query_validate`
+`languages` tool lists the compiled C, C++, Rust, Python, JavaScript, TypeScript, TSX, Go and Java grammars. Use `query_validate`
 to check a Tree-sitter query, `syntax_tree` to inspect a snippet and `structural_search`
 to find captures in inline source, a file or a filtered directory tree. Use `batch_search` to run several
 queries over the same files in one pass. [Tool examples and limits](docs/reference/tools.md)
 
 - [Documentation](docs/README.md) and [build instructions](docs/getting-started/README.md)
+- [OpenCode v2 installation and examples](docs/integrations/opencode-v2.md)
 - [Roadmap and TODO](ROADMAP.md)
 - [C++ style guide](StyleGuide.CPP.md) and [clang-format rules](.clang-format)
 - [MIT license](LICENSE)

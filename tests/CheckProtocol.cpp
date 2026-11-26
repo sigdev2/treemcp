@@ -147,7 +147,7 @@ void checkTools(QProcess& server, const QString& schemaPath)
     const QJsonObject result = call.value("result").toObject();
     const QJsonObject data = result.value("structuredContent").toObject();
     const QJsonArray languages = data.value("languages").toArray();
-    require(call.value("id") == "call" && data.size() == 1 && languages.size() == 2, "Incorrect language list");
+    require(call.value("id") == "call" && data.size() == 1 && languages.size() == 9, "Incorrect language list");
     const auto checkLanguage = [](const QJsonObject& entry, const QString& id, const QJsonArray& expected) {
         const auto extensions = entry.value("extensions").toArray();
         require(
@@ -156,7 +156,14 @@ void checkTools(QProcess& server, const QString& schemaPath)
             "Unexpected grammar ID or file extensions");
     };
     checkLanguage(languages.first().toObject(), "cpp", { ".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".h" });
-    checkLanguage(languages.last().toObject(), "python", { ".py", ".pyi" });
+    checkLanguage(languages.at(1).toObject(), "python", { ".py", ".pyi" });
+    checkLanguage(languages.at(2).toObject(), "c", { ".c", ".h" });
+    checkLanguage(languages.at(3).toObject(), "rust", { ".rs" });
+    checkLanguage(languages.at(4).toObject(), "javascript", { ".js", ".jsx", ".mjs", ".cjs" });
+    checkLanguage(languages.at(5).toObject(), "typescript", { ".ts", ".mts", ".cts" });
+    checkLanguage(languages.at(6).toObject(), "tsx", { ".tsx" });
+    checkLanguage(languages.at(7).toObject(), "go", { ".go" });
+    checkLanguage(languages.at(8).toObject(), "java", { ".java" });
     const QJsonArray content = result.value("content").toArray();
     require(
         content.size() == 1 && content.first().toObject().value("type") == "text" &&

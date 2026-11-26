@@ -25,4 +25,4 @@ choices still require a compatibility or contract decision.
 | [MCP protocol compatibility policy](protocol-compatibility.md) | Accepted |
 | [Request-local batch sharing and aggregation](../internals/batch.md) | Implemented for batches |
 | [Batch admission, fairness and shared budgets](../internals/batch.md) | Implemented for batches |
-| [Versioned OpenCode integration](../integrations/opencode-v2.md) | Open |
+| [Versioned OpenCode integration](../integrations/opencode-v2.md) | OpenCode 2.1.4 standalone direct tools |

@@ -96,7 +96,7 @@ int main(int argc, char* argv[])
             QCoreApplication::exit(1);
             return;
         }
-        report << "Self-check passed: Qt " << qVersion() << ", Tree-sitter, C++ and Python grammars.\n";
+        report << "Self-check passed: Qt " << qVersion() << ", Tree-sitter and all registered grammars.\n";
         QCoreApplication::exit(0);
     });
     return application.exec();

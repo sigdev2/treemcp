@@ -53,7 +53,7 @@ void checkValidation(const ToolCall& call)
         validate(QString(129, '(') + "(identifier)" + QString(129, ')')).value("valid") == false,
         "Query nesting limit ignored");
     require(
-        call("query_validate", { { "language", "rust" }, { "query", "(_)" } }).value("isError") == true,
+        call("query_validate", { { "language", "unknown" }, { "query", "(_)" } }).value("isError") == true,
         "Unknown language accepted");
 }
 

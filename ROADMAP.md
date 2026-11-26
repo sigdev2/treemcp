@@ -83,11 +83,11 @@ Version 0.1.0 is the bootstrap; 1.0.0 requires all release gates below.
 
 ## 6. Languages and integrations
 
-- [ ] Add pinned C, Rust, JavaScript, TypeScript/TSX, Go and Java grammars after compatibility tests.
-- [ ] Resolve ambiguous extensions such as .h through explicit language or static configuration.
-- [ ] Pin and verify an OpenCode v2 release and its actual MCP/skill configuration format.
-- [ ] Ship the structural-search skill, tested examples and installation instructions.
-- [ ] Test skill discovery, single/batch tool selection, errors and partial results against a pinned client release.[^client-checks]
+- [x] Add pinned C, Rust, JavaScript, TypeScript/TSX, Go and Java grammars after compatibility tests.
+- [x] Select C or C++ for shared `.h` files through each query's explicit language.
+- [x] Pin OpenCode 2.1.4 and verify its project-local MCP and skill configuration in standalone direct-tool mode.
+- [x] Ship the structural-search skill, tested examples and [installation instructions](docs/integrations/opencode-v2.md).
+- [x] Test skill discovery, single/batch tool selection, errors and partial results against a pinned client release.[^client-checks]
 
 ## 7. Quality, performance and delivery
 

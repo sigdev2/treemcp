@@ -7,12 +7,13 @@
 #include <tree_sitter/api.h>
 
 #include <cstdint>
+#include <iterator>
 
 namespace treemcp::SelfCheck {
 
 namespace {
 
-QString checkGrammar(const LanguageDefinition& definition, const QByteArray& source)
+QString checkGrammar(const LanguageDefinition& definition, const QByteArray& source, const QByteArray& querySource)
 {
     const Parser parser { ts_parser_new(), &ts_parser_delete };
     if (parser == nullptr || !ts_parser_set_language(parser.get(), definition.language)) {
@@ -27,7 +28,6 @@ QString checkGrammar(const LanguageDefinition& definition, const QByteArray& sou
         return QStringLiteral("The grammar did not parse the valid fixture.");
     }
 
-    const QByteArray querySource("(function_definition) @definition");
     uint32_t errorOffset = 0;
     TSQueryError errorType = TSQueryErrorNone;
     const Query query { ts_query_new(
@@ -54,7 +54,7 @@ QString checkGrammar(const LanguageDefinition& definition, const QByteArray& sou
     const TSNode node = match.captures[0].node;
     const uint32_t expectedEnd = static_cast<uint32_t>(source.trimmed().size());
     if (ts_node_start_byte(node) != 0 || ts_node_end_byte(node) != expectedEnd) {
-        return QStringLiteral("The captured function has unexpected byte boundaries.");
+        return QStringLiteral("The captured node has unexpected byte boundaries.");
     }
     if (ts_query_cursor_next_match(cursor.get(), &match)) {
         return QStringLiteral("The fixture produced an unexpected second match.");
@@ -79,16 +79,32 @@ QString checkGrammar(const LanguageDefinition& definition, const QByteArray& sou
 QStringList run()
 {
     QStringList failures;
-    const QList<LanguageDefinition>& languages = LanguageRegistry::getLanguages();
-    if (languages.size() != 2 || LanguageRegistry::getLanguage(QStringLiteral("unknown")) != nullptr) {
-        failures.append(QStringLiteral("The bootstrap language registry is inconsistent."));
+    struct Fixture {
+        const char* id;
+        const char* source;
+        const char* query;
+    };
+    constexpr Fixture fixtures[] {
+        { "cpp", "template<class T> T answer(T x) { return x; }", "(template_declaration) @node" },
+        { "python", "def answer():\n    return 42", "(function_definition) @node" },
+        { "c", "int answer(void) { return _Generic(1, int: 42); }", "(function_definition) @node" },
+        { "rust", "fn answer() -> i32 { 42 }", "(function_item) @node" },
+        { "javascript", "function answer() { return 42; }", "(function_declaration) @node" },
+        { "typescript", "interface Answer { value: number }", "(interface_declaration) @node" },
+        { "tsx", "const answer = <Answer value={42} />;", "(lexical_declaration) @node" },
+        { "go", "package answer", "(package_clause) @node" },
+        { "java", "class Answer { int value() { return 42; } }", "(class_declaration) @node" }
+    };
+    if (std::ssize(fixtures) != LanguageRegistry::getLanguages().size()) {
+        failures.append(QStringLiteral("Expected one self-check fixture per registered grammar."));
     }
-    for (const LanguageDefinition& definition : languages) {
-        const QByteArray source = definition.id == QStringLiteral("cpp") ? QByteArray("int answer() { return 42; }\n")
-                                                                         : QByteArray("def answer():\n    return 42\n");
-        const QString failure = checkGrammar(definition, source);
+    for (const Fixture& fixture : fixtures) {
+        const auto id = QString::fromLatin1(fixture.id);
+        const auto* definition = LanguageRegistry::getLanguage(id);
+        const QString failure = definition ? checkGrammar(*definition, fixture.source, fixture.query)
+                                           : QStringLiteral("Missing registered grammar.");
         if (!failure.isEmpty()) {
-            failures.append(definition.id + QStringLiteral(": ") + failure);
+            failures.append(id + QStringLiteral(": ") + failure);
         }
     }
     return failures;

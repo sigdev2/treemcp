@@ -11,6 +11,12 @@ process is used by the executable. Development scripts are separate from runtime
 | Tree-sitter | [v0.25.10](https://github.com/tree-sitter/tree-sitter/releases/tag/v0.25.10) |
 | C++ grammar | [v0.23.4](https://github.com/tree-sitter/tree-sitter-cpp/releases/tag/v0.23.4) |
 | Python grammar | [v0.25.0](https://github.com/tree-sitter/tree-sitter-python/releases/tag/v0.25.0) |
+| C grammar | [v0.24.2](https://github.com/tree-sitter/tree-sitter-c/releases/tag/v0.24.2) |
+| Rust grammar | [v0.24.2](https://github.com/tree-sitter/tree-sitter-rust/releases/tag/v0.24.2) |
+| JavaScript grammar | [v0.25.0](https://github.com/tree-sitter/tree-sitter-javascript/releases/tag/v0.25.0) |
+| TypeScript and TSX grammars | [v0.23.2](https://github.com/tree-sitter/tree-sitter-typescript/releases/tag/v0.23.2) |
+| Go grammar | [v0.25.0](https://github.com/tree-sitter/tree-sitter-go/releases/tag/v0.25.0) |
+| Java grammar | [v0.23.5](https://github.com/tree-sitter/tree-sitter-java/releases/tag/v0.23.5) |
 
 Exact commits are recorded in [dependencies.lock.json](../../third_party/dependencies.lock.json).
 [SHA256SUMS](../../third_party/SHA256SUMS) covers every vendored source/header,

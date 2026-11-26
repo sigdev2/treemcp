@@ -2,8 +2,8 @@
 
 Every build helper runs CTest after compilation. Current checks are:
 
-- `bootstrap.runtime`: both grammar ABIs load; fixtures parse; queries return the
-  expected function boundaries; invalid node types are rejected.
+- `bootstrap.runtime`: all nine grammar ABIs load; fixtures parse; queries return the
+  expected capture boundaries; invalid node types are rejected.
 - `bootstrap.broken-grammar` runs the CLI with the C++ grammar registered for
   Python. It checks the failing exit status, the Python diagnostic and clean stdout.
 - `bootstrap.cli`: help, version and invalid options have the expected
@@ -23,6 +23,8 @@ Every build helper runs CTest after compilation. Current checks are:
   completion, and closes stdin with single and batch work pending. Its shutdown
   grace interval is five seconds.
 - Configure-time SHA-256 verification of the complete vendored source subset.
+- The [OpenCode 2.1.4 scenarios](../integrations/opencode-v2.md#reproduce-the-checks)
+  run separately from CTest and exercise the installed skill through a local model.
 - `search.stdio` calls all three single-file tools over the wire. It covers C++
   and Python queries, UTF-8 offsets and columns, predicate diagnostics, syntax
   recovery, cursor exhaustion and the input, capture, tree and response limits.
@@ -31,6 +33,8 @@ Every build helper runs CTest after compilation. Current checks are:
   imports, decorators, awaited calls and comprehensions, C++ includes, declarations,
   qualified templates and member calls, pairwise predicates over repeated
   captures, capture-free matches and searches on recovered syntax trees.
+  It also exercises each new grammar, both interpretations of a shared C/C++ header
+  and the exact Qt and Python arguments shipped in the OpenCode skill.
   The checks preserve capture order and verify UTF-8 ranges against the source.
 - `workspace.stdio` runs when CMake finds Python 3. It uses the standard library
   and a temporary workspace to exercise filters, overlapping scopes, path and file

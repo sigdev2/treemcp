@@ -1,7 +1,9 @@
 """Check Tree-sitter query results against explicit expectations through MCP stdio."""
 
 from collections import Counter
+import json
 from pathlib import Path
+import re
 import sys
 import tempfile
 
@@ -136,6 +138,7 @@ PAIR_QUERIES = [
 
 
 def check_matches(result, expected, source, path, syntax_errors):
+    assert "isError" not in result, result
     assert result["hasSyntaxErrors"] == syntax_errors, result
     assert not result["incomplete"] and not result["truncated"], result
     raw = source.encode("utf-8")
@@ -204,10 +207,67 @@ def check_group(call, root, path, language, source, cases, syntax_errors=False):
                 raise AssertionError(f"{path}, {name}, {mode}: {error}") from error
 
 
+def check_languages(call, root):
+    fixtures = [
+        ("c", "sample.c", "int f(void) { return _Generic(1, int: 2); }", "(generic_expression) @node",
+         "_Generic(1, int: 2)"),
+        ("rust", "sample.rs", "fn run() {}", "(function_item name: (identifier) @node)", "run"),
+        ("javascript", "sample.jsx", "export const ui = <Box/>;", "(jsx_self_closing_element) @node", "<Box/>"),
+        ("typescript", "sample.ts", "interface Box {}", "(interface_declaration name: (type_identifier) @node)", "Box"),
+        ("tsx", "sample.tsx", "const ui: JSX.Element = <Box/>;", "(jsx_self_closing_element) @node", "<Box/>"),
+        ("go", "sample.go", "package main\nfunc Run() {}\n", "(function_declaration name: (identifier) @node)", "Run"),
+        ("java", "Sample.java", "class Box {}", "(class_declaration name: (identifier) @node)", "Box"),
+    ]
+    for language, file, source, query, expected in fixtures:
+        assert call("query_validate", language=language, query=query)["valid"]
+        check_group(call, root, "languages/" + file, language, source,
+                    [("capture", query, [hit(("node", expected))])])
+
+    header = "headers/shared.h"
+    write(root, header, "typedef int Value;")
+    queries = [dict(id=lang, language=lang, query="(type_definition declarator: (type_identifier) @name)")
+               for lang in ("c", "cpp")]
+    result = call("batch_search", queries=queries, paths=["headers", header])
+    assert result["stats"] == dict(filesVisited=1, filesRead=1, filesParsed=1, treeBuilds=2, queryExecutions=2), result
+    for item, query in zip(result["items"], queries):
+        assert item["id"] == query["id"] and item["matches"] == call(
+            language=query["language"], query=query["query"], paths=["headers"])["matches"]
+        assert item["matches"][0]["captures"][0]["text"] == "Value", item
+    write(root, header, "template<class T> struct Value {};")
+    assert call("syntax_tree", path=header, language="c")["hasSyntaxErrors"]
+    assert not call("syntax_tree", path=header, language="cpp")["hasSyntaxErrors"]
+
+
+def check_skill_examples(executable):
+    repo = Path(__file__).resolve().parents[1]
+    skill = repo / "integrations/opencode-v2/.opencode/skills/structural-search/SKILL.md"
+    examples = re.findall(r"^```json\n(.*?)\n```$", skill.read_text(encoding="utf-8"), re.M | re.S)
+    qt, python_batch = map(json.loads, examples)
+    with session(executable, repo / "tests/fixtures/opencode") as call:
+        match, = call(**qt)["matches"]
+        assert [c["text"] for c in match["captures"]] == ["QObject", "connect"], match
+        assert match["path"] == qt["path"]
+        batch = call("batch_search", **python_batch)
+        assert not batch["incomplete"] and not batch["truncated"] and batch["stats"]["treeBuilds"] == 2, batch
+        actual = {item["id"]: sorted((m["path"], m["captures"][0]["text"]) for m in item["matches"])
+                  for item in batch["items"]}
+        assert actual == {"functions": [("src/task.py", "dispatch"), ("src/worker.py", "refresh")],
+                          "classes": [("src/worker.py", "Worker")]}, actual
+        python_batch["queries"][1]["query"] = "(missing_node)"
+        python_batch["maxTotalMatches"] = 1
+        partial = call("batch_search", **python_batch)
+        functions, classes = partial["items"]
+        assert partial["truncated"] and partial["incomplete"], partial
+        assert functions["truncated"] and len(functions["matches"]) == 1, functions
+        assert classes["incomplete"] and classes["error"]["byteOffset"] == 1 and not classes["matches"], classes
+
+
 if __name__ == "__main__":
     executable = str(Path(sys.argv[1]).resolve())
+    check_skill_examples(executable)
     with tempfile.TemporaryDirectory() as temp, session(executable, Path(temp)) as call:
         root = Path(temp)
+        check_languages(call, root)
         check_tree(call, root)
         check_query_diagnostics(call)
         fields = "!alias !alternative !argument !arguments !attribute !cause !condition !consequence"

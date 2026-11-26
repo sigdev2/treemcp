@@ -12,7 +12,9 @@ its `name` and `arguments` to `tools/call`.
 | [structural_search](../../schemas/structural_search.json) | `language`, `query` and one of `source`, `path` or `paths` | Matches in Tree-sitter cursor order with pattern indexes and ordered, named captures |
 | [batch_search](../../schemas/batch_search.json) | `queries` and `paths` | One ordered result per ID, scan statistics and completion flags |
 
-Supply `cpp` or `python`. Inline source and workspace files are parsed afresh on each call.
+Use a language ID returned by `languages`. The compiled IDs are `c`, `cpp`, `rust`,
+`python`, `javascript`, `typescript`, `tsx`, `go` and `java`. Inline source and
+workspace files are parsed afresh on each call.
 
 ## Concurrent calls
 
@@ -53,8 +55,12 @@ Overlapping selectors visit a given relative file path once.
 }
 ```
 
-Scoped searches select extensions advertised by `languages`. Each file-backed
-match includes its relative `path`. Within each file, matches follow cursor order.
+Scoped searches select extensions advertised by `languages`. Both `c` and `cpp`
+include `.h`. The explicit language selects the grammar. A batch with both languages
+reads each header once and parses it once per requested grammar. Use `javascript`
+for `.jsx`, `typescript` for `.ts`, `.cts` and `.mts`, and `tsx` for `.tsx`.
+
+Each file-backed match includes its relative `path`. Within each file, matches follow cursor order.
 Across files, the server streams native directory order and applies one match and
 response budget across the scope. It stops after detecting an omitted match.
 Read, parse and traversal failures mark scoped results `incomplete`. The response

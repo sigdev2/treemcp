@@ -56,7 +56,7 @@ else()
     target_sources(treemcp_core PRIVATE src/workspace/WorkspacePosix.cpp)
 endif()
 target_include_directories(treemcp_core PUBLIC src/app src/languages src/mcp src/search src/scheduler src/workspace "${PROJECT_BINARY_DIR}/generated")
-target_link_libraries(treemcp_core PUBLIC Qt6::Core tree_sitter tree_sitter_cpp tree_sitter_python)
+target_link_libraries(treemcp_core PUBLIC Qt6::Core tree_sitter ${grammar_targets})
 target_link_libraries(treemcp_core PRIVATE yyjson Threads::Threads)
 treemcp_set_warnings(treemcp_core)
 
@@ -74,12 +74,16 @@ include(cmake/Deployment.cmake)
 install(FILES README.md ROADMAP.md LICENSE StyleGuide.CPP.md .clang-format
     DESTINATION "${CMAKE_INSTALL_DOCDIR}")
 install(DIRECTORY docs/ DESTINATION "${CMAKE_INSTALL_DOCDIR}/docs")
+install(DIRECTORY tests/fixtures/opencode DESTINATION "${CMAKE_INSTALL_DOCDIR}/tests/fixtures")
+install(FILES tests/check_opencode.py DESTINATION "${CMAKE_INSTALL_DOCDIR}/tests")
 install(FILES tests/fixtures/workspace-ignore.json DESTINATION "${CMAKE_INSTALL_DOCDIR}/tests/fixtures")
 install(FILES ${tool_descriptors} DESTINATION "${CMAKE_INSTALL_DOCDIR}/schemas")
+install(DIRECTORY integrations/ DESTINATION "${CMAKE_INSTALL_DOCDIR}/integrations")
 install(DIRECTORY config/ DESTINATION "${CMAKE_INSTALL_DOCDIR}/config")
 install(FILES third_party/dependencies.lock.json third_party/SHA256SUMS
     DESTINATION "${CMAKE_INSTALL_DOCDIR}/third_party")
-foreach(dependency tree-sitter tree-sitter-cpp tree-sitter-python yyjson)
+foreach(dependency tree-sitter tree-sitter-cpp tree-sitter-python tree-sitter-c tree-sitter-rust
+        tree-sitter-javascript tree-sitter-typescript tree-sitter-go tree-sitter-java yyjson)
     install(FILES "third_party/${dependency}/LICENSE"
         DESTINATION "${CMAKE_INSTALL_DOCDIR}/third_party/${dependency}")
 endforeach()

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "treemcp": {
+        "type": "local",
+        "command": ["{env:TREEMCP_EXECUTABLE}", "--workspace-root", "."],
+        "cwd": ".",
+        "codemode": false
+      }
+    }
+  }
+}
