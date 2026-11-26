@@ -89,6 +89,50 @@ Version 0.1.0 is the bootstrap; 1.0.0 requires all release gates below.
 - [x] Ship the structural-search skill, tested examples and [installation instructions](docs/integrations/opencode-v2.md).
 - [x] Test skill discovery, single/batch tool selection, errors and partial results against a pinned client release.[^client-checks]
 
+### One-shot `call` command and structural-search skill
+
+- [x] Add `structural-mcp [--workspace-root DIR] call TOOL [--args JSON|-]`
+  to `src/main.cpp`. Run one tool and exit. Use the current directory by default
+  and honor the existing `--ignore-dir` and worker options. With no subcommand,
+  start the stdio server as today. Show both modes in `--help`.
+- [x] Accept one UTF-8 JSON object inline, or read it to EOF from stdin with
+  `--args -`. Omitted arguments mean `{}`, so `structural-mcp call languages`
+  returns immediately even with stdin open. Bound the argument input to 1 MiB
+  while reading and diagnose malformed JSON, extra arguments and conflicting modes.
+- [x] Dispatch through `Tools::call` and its validated runner using the existing
+  workspace, scheduler, deadlines and `Tools::execute`. Cover all five tools,
+  including the registry-backed `languages` and parallel `batch_search`.
+  The CLI needs no server process or MCP handshake.
+- [x] Write the tool's `structuredContent` object as one UTF-8 JSON line to
+  stdout. Exit 0 for a returned result, including zero matches,
+  `query_validate` with `valid: false`, and partial batches with item errors.
+  Preserve their diagnostics and completion flags. Write failures to stderr
+  with empty stdout. Use exit 2 for CLI syntax, malformed input, an unknown
+  tool or an invalid workspace root, and exit 1 for a tool-reported failure.
+- [x] Update the shipped [structural-search skill](integrations/opencode-v2/.opencode/skills/structural-search/SKILL.md).
+  Use advertised MCP tools when available. When the client has no TreeMCP
+  connection or cannot reach the server, read `references/cli-call.md` relative
+  to the installed skill and run the same tool with the same workspace and
+  arguments. A query error, rejected path or partial result is a tool outcome
+  and should be handled in the current mode.
+- [x] Add that reference alongside the skill. Document the configured
+  `TREEMCP_EXECUTABLE`, quoting paths with spaces, selecting the project root,
+  and passing JSON through stdin in PowerShell and POSIX shells. Include a
+  single-file search, a batch search, exit codes and partial-result handling.
+  If the executable is missing, lacks `call` or execution is unavailable,
+  report the limitation. Link the guide from the OpenCode installation
+  instructions and verify it ships in the installed skill directory.
+- [x] Add Windows and Linux CLI tests comparing results with MCP
+  `structuredContent` for all five tools on the same fixtures. Exercise inline
+  and piped arguments, Unicode, a workspace path with spaces, ignore rules,
+  rejected paths, malformed and oversized input, invalid queries and partial
+  batches. Assert stdout, stderr and exit codes. Run the existing stdio suite.
+- [x] Extend `tests/check_opencode.py` with a disabled-server scenario that
+  reads the installed reference, invokes the configured binary and verifies a
+  fixture capture. Scope the test's read and command permissions to that
+  scenario. Also verify an unavailable binary produces a clear limitation and
+  connected searches and rejected paths never trigger CLI fallback.
+
 ## 7. Quality, performance and delivery
 
 - [ ] Add Windows and Linux CI, formatting checks and dependency integrity checks.

@@ -3,9 +3,9 @@ name: structural-search
 description: Find declarations, calls and other syntax patterns with TreeMCP when searching source files by their code structure.
 ---
 
-Check the client's available tools when this skill loads. If the search tools are missing, finish with a message explaining that TreeMCP is unavailable and the search could not run. Reloading the skill cannot connect the server.
+Use the advertised TreeMCP tools when the MCP server is reachable. If those tools are absent or the client reports a connection failure, first read [references/cli-call.md](references/cli-call.md) using its path in the loaded skill's file list. Then follow that guide to run the equivalent `structural-mcp call` in the active workspace.
 
-Use the connected server's tools as advertised in the client. Discover the grammar IDs and suffixes with `languages`. For a shared `.h` suffix, select `c` or `cpp` from the project's language or the user's request. If the distinction matters and the language is unknown, ask or report both interpretations separately.
+Discover the grammar IDs and suffixes with `languages`. For a shared `.h` suffix, select `c` or `cpp` from the project's language or the user's request. If the distinction matters and the language is unknown, ask or report both interpretations separately.
 
 Use a shallow `syntax_tree` on a representative snippet or file when node names are uncertain. Check unfamiliar queries with `query_validate`. Its diagnostic offset counts UTF-8 bytes. After a query error, inspect the node or correct the query before retrying. Capture the smallest node that answers the question.
 
@@ -13,7 +13,7 @@ Use `structural_search` for one query, with `path` for one file or `paths` for a
 
 Report paths and captures as syntax evidence. Rows and UTF-8 byte columns start at zero. For example, a capture with `startRow: 1` is on editor line 2.
 
-Check each batch item's `error`, `truncated`, `incomplete` and `hasSyntaxErrors`, plus the request diagnostics and deadline. A result limit can omit further hits. An incomplete scan can leave files unexamined. Qualify absence accordingly. If a tool is unavailable or a path is rejected, report that limitation and keep the workspace boundary. Never substitute shell or network access for a rejected search.
+Check each batch item's `error`, `truncated`, `incomplete` and `hasSyntaxErrors`, plus the request diagnostics and deadline. A result limit can omit further hits. An incomplete scan can leave files unexamined. Qualify absence accordingly. Handle query errors, rejected paths and partial results in the current mode. Report a rejected path and keep the workspace boundary.
 
 ## Query examples
 

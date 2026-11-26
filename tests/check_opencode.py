@@ -3,7 +3,9 @@
 import argparse
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
+import re
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -12,9 +14,10 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 INTEGRATION = ROOT / "integrations/opencode-v2"
 SKILL = "structural-search"
+REFERENCE = f".opencode/skills/{SKILL}/references/cli-call.md"
 
 
-def scenario(cli, workspace, env, prompt):
+def scenario(cli, workspace, env, prompt, *, fallback=False):
     run = subprocess.run([cli, "run", "--standalone", "--model", "fixture/agent", "--format", "json",
                           "Load the structural-search skill once, then follow its instructions. " + prompt],
                          cwd=workspace, env=env, capture_output=True, text=True, encoding="utf-8", timeout=420)
@@ -28,8 +31,10 @@ def scenario(cli, workspace, env, prompt):
     assert any(call["tool"] == "skill" and call["state"]["input"] == {"id": SKILL}
                and call["state"]["status"] == "completed" and body in call["state"]["output"].replace("\r\n", "\n")
                for call in calls), (calls, answer)
-    assert all(c["tool"] == "skill" or c["tool"].startswith("treemcp_") for c in calls), calls
-    print([c["tool"] for c in calls], answer, flush=True)
+    allowed = {"skill", "read", "shell"} if fallback else {"skill"}
+    assert all(c["tool"] in allowed or (not fallback and c["tool"].startswith("treemcp_"))
+               for c in calls), calls
+    print([(c["tool"], c["state"]["status"]) for c in calls], answer, flush=True)
     return calls, answer
 
 
@@ -75,14 +80,53 @@ def exercise(cli, workspace, env, config):
     calls, answer = scenario(cli, workspace, env, "Inspect ../outside.py with syntax_tree as Python. "
                              "Try the supplied path once and report the outcome.")
     assert any(c["tool"] == "treemcp_syntax_tree" and c["state"]["status"] == "error" for c in calls), calls
+
+    exercise_fallback(cli, workspace, env, config)
+
+
+def fallback_calls(cli, workspace, env, config):
     config["mcp"]["servers"]["treemcp"]["disabled"] = True
-    (workspace / "opencode.json").write_text(json.dumps(config), encoding="utf-8")
-    calls, answer = scenario(cli, workspace, env, "I disabled TreeMCP in this workspace. Can you verify "
-                             "the Qt connections here? If the search tools are missing, answer directly "
-                             "without retrying.")
-    assert all(c["tool"] == "skill" for c in calls), calls
-    assert any(s in answer.lower() for s in ("unavailable", "unable", "cannot", "can't", "not available",
-                                             "disabled", "disconnected", "not connected")), answer
+    executable = shlex.quote(Path(env["TREEMCP_EXECUTABLE"]).as_posix())
+    command = f"{executable} --workspace-root . call structural_search --args"
+    fallback_config = {**config, "permissions": [
+        *config["permissions"],
+        {"action": "read", "resource": REFERENCE, "effect": "allow"},
+        {"action": "shell", "resource": f"{command} *", "effect": "allow"},
+    ]}
+    (workspace / "opencode.json").write_text(json.dumps(fallback_config), encoding="utf-8")
+
+    prompt = ("The TreeMCP MCP server is disabled. Its configuration uses the project root and the default "
+              "directory exclusions. Read the skill's CLI reference. To find the Python function defined "
+              "in src/worker.py, make one shell call using this exact prefix and append the single-quoted "
+              f"JSON argument: {command}\n"
+              "Report the captured name and path on success. If the executable cannot be launched, "
+              "report the shell diagnostic and stop.")
+    calls, answer = scenario(cli, workspace, env, prompt, fallback=True)
+    reference_index = next((i for i, call in enumerate(calls) if call["tool"] == "read"
+                            and call["state"]["status"] == "completed"
+                            and PureWindowsPath(call["state"]["input"]["path"]).as_posix().endswith(REFERENCE)), None)
+    assert reference_index is not None, [(c["tool"], c["state"]["input"]) for c in calls]
+    output = [c["state"]["output"] for c in calls[reference_index + 1:] if c["tool"] == "shell"
+              and c["state"]["status"] == "completed" and c["state"]["input"]["command"].startswith(command + " ")]
+    assert output, calls
+    return output, answer
+
+
+def exercise_fallback(cli, workspace, env, config):
+    output, answer = fallback_calls(cli, workspace, env, config)
+    assert any('"text":"refresh"' in out and '"path":"src/worker.py"' in out for out in output), output
+    assert "refresh" in answer and "src/worker.py" in answer, answer
+
+    missing_executable = workspace / "missing-structural-mcp"
+    missing = dict(env, TREEMCP_EXECUTABLE=str(missing_executable))
+    output, answer = fallback_calls(cli, workspace, missing, config)
+    launch_error = re.compile(r"no such file or directory|command not found|is not recognized", re.IGNORECASE)
+    assert any(missing_executable.name in line and launch_error.search(line)
+               for out in output for line in out.splitlines()), output
+    assert any(s in answer.lower() for s in ("unavailable", "unable", "cannot", "could not", "can't",
+                                             "not available", "not found", "couldn't", "missing",
+                                             "failed", "does not exist")), answer
+    assert "refresh" not in answer, answer
 
 
 def main():

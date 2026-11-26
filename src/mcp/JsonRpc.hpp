@@ -4,6 +4,7 @@
 #include <QByteArrayView>
 #include <QJsonObject>
 
+#include <optional>
 #include <variant>
 
 namespace treemcp::JsonRpc {
@@ -18,6 +19,7 @@ struct Request {
 using Decoded = std::variant<Request, QJsonObject, std::monostate>;
 
 Decoded decode(QByteArrayView frame);
+std::optional<QJsonObject> decodeObject(QByteArrayView input);
 QJsonObject error(const QJsonValue& id, int code, const QString& message);
 QJsonObject success(const QJsonValue& id, const QJsonObject& result);
 

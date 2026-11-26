@@ -15,6 +15,13 @@ constexpr int MAX_DEPTH = 64;
 constexpr size_t MAX_OBJECT_MEMBERS = 1024;
 constexpr size_t MAX_ID_BYTES = 1024;
 
+using Document = std::unique_ptr<yyjson_doc, decltype(&yyjson_doc_free)>;
+
+Document readJson(QByteArrayView input)
+{
+    return { yyjson_read(input.data(), static_cast<size_t>(input.size()), 0), yyjson_doc_free };
+}
+
 QString stringValue(yyjson_val* value)
 {
     // U+FEFF inside a JSON string is data, including at the start of a request ID.
@@ -108,8 +115,7 @@ QJsonObject success(const QJsonValue& id, const QJsonObject& result)
 
 Decoded decode(QByteArrayView frame)
 {
-    using Document = std::unique_ptr<yyjson_doc, decltype(&yyjson_doc_free)>;
-    const Document document(yyjson_read(frame.data(), static_cast<size_t>(frame.size()), 0), yyjson_doc_free);
+    const auto document = readJson(frame);
     if (!document) {
         return error(QJsonValue::Undefined, -32700, QStringLiteral("Parse error"));
     }
@@ -139,6 +145,19 @@ Decoded decode(QByteArrayView frame)
         return error(id, -32600, QStringLiteral("Expected a method string"));
     }
     return Request { id, method.toString(), object.value("params") };
+}
+
+std::optional<QJsonObject> decodeObject(QByteArrayView input)
+{
+    const auto document = readJson(input);
+    if (!document || !yyjson_is_obj(yyjson_doc_get_root(document.get()))) {
+        return std::nullopt;
+    }
+    const QJsonValue value = convert(yyjson_doc_get_root(document.get()), 0);
+    if (!value.isObject()) {
+        return std::nullopt;
+    }
+    return value.toObject();
 }
 
 } // namespace treemcp::JsonRpc

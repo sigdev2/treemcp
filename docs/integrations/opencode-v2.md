@@ -16,7 +16,8 @@ The project-local configuration and `structural-search` skill target **OpenCode
    in PowerShell.
 3. Copy the [skill directory](../../integrations/opencode-v2/.opencode/skills/structural-search)
    into `.opencode/skills/` in the target project. Its resulting path must be
-   `.opencode/skills/structural-search/SKILL.md`. Keep the ID unique across
+   `.opencode/skills/structural-search/SKILL.md`. Include its `references/`
+   directory. Keep the ID unique across
    project skill sources.
 4. Copy the [project config](../../integrations/opencode-v2/opencode.json)
    into the project root. For an existing `opencode.json` or `opencode.jsonc`,
@@ -33,7 +34,10 @@ opencode run --standalone --format json "Use the structural-search skill. Find P
 The configured server name produces direct tool names such as
 `treemcp_structural_search` and `treemcp_batch_search`. In the JSONL trace,
 `tool_use` events show the skill ID, actual tool name, inputs and execution
-outcome. An unavailable server or a rejected path should be reported to the user.
+outcome. If the server is unavailable, the skill reads its CLI guide and calls the
+installed binary in the same workspace. This uses OpenCode's `read` and `shell`
+tools and their permissions. A rejected path is reported to the user.
+[CLI guide](../../integrations/opencode-v2/.opencode/skills/structural-search/references/cli-call.md)
 [OpenCode MCP configuration](https://github.com/anomalyco/opencode/blob/v2.1.4/services/www/src/docs/content/mcp-servers.mdx)
 and [skill discovery](https://github.com/anomalyco/opencode/blob/v2.1.4/services/www/src/docs/content/skills.mdx)
 
@@ -54,8 +58,9 @@ flags. The empty match list for `classes` reflects the invalid query.
 Run the [client scenarios](../../tests/check_opencode.py) from a source checkout
 with Python 3, Git, OpenCode 2.1.4 and a running local OpenAI-compatible chat
 endpoint. Pass the served model ID. On Windows, `--client` can point to the
-native `opencode.exe` from the CLI package. The TreeMCP build must be able to
-resolve its Qt and compiler runtime libraries.
+native `opencode.exe` from the CLI package. The CLI fallback scenarios use
+POSIX shell syntax, with Git Bash on Windows. The TreeMCP build must be able
+to resolve its Qt and compiler runtime libraries.
 
 ```sh
 python tests/check_opencode.py /absolute/path/to/structural-mcp \
@@ -65,10 +70,10 @@ python tests/check_opencode.py /absolute/path/to/structural-mcp \
 The runner installs the integration into a temporary Git project, configures the
 local model there and uses private OpenCode data directories. It checks skill
 loading, tool choices, captures, batch statistics, invalid queries, partial results,
-workspace boundaries and a disabled server. Model-generated queries and answers
+workspace boundaries and CLI fallback with a disabled server. Model-generated queries and answers
 can vary across runs.
 
-## Verification record
+## Original MCP verification record
 
 The Windows x64 Release build of `structural-mcp 0.1.0` used Qt 6.4.1 and MinGW
 11.2. Its executable SHA-256 was
