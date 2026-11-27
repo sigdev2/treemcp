@@ -4,6 +4,8 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdio>
+#include <memory>
 #include <vector>
 
 namespace {
@@ -67,9 +69,46 @@ bool checkCapacity()
     return !overflow && bounded && single.load();
 }
 
+bool checkCancelledChildren()
+{
+    treemcp::Scheduler scheduler(2);
+    QSemaphore started;
+    QSemaphore resumeSingle;
+    QSemaphore resumeFile;
+    std::atomic_bool cancelled = false;
+    const treemcp::SearchStop stop { cancelled, Clock::time_point::max() };
+    auto runningState = std::make_shared<int>(1);
+    auto queuedState = std::make_shared<int>(2);
+    const std::weak_ptr<int> running = runningState;
+    const std::weak_ptr<int> queued = queuedState;
+    std::atomic_bool queuedRan = false;
+    scheduler.submit(1, [&] {
+        started.release();
+        resumeSingle.acquire();
+    });
+    scheduler.submitFile(stop, [&, state = std::move(runningState)] {
+        started.release();
+        resumeFile.acquire();
+    });
+    started.acquire(2);
+    scheduler.submitFile(stop, [&, state = std::move(queuedState)] { queuedRan = true; });
+    cancelled = true;
+    scheduler.cancelFiles();
+    const bool removed = queued.expired() && !running.expired();
+    resumeFile.release();
+    scheduler.joinFiles();
+    const bool released = running.expired() && !queuedRan;
+    resumeSingle.release();
+    scheduler.shutdown();
+    if (removed && released) {
+        std::puts("Cancelled queued child released immediately; running child's state released before join returned");
+    }
+    return removed && released;
+}
+
 } // namespace
 
 int main()
 {
-    return checkFairness() && checkCapacity() ? 0 : 1;
+    return checkFairness() && checkCapacity() && checkCancelledChildren() ? 0 : 1;
 }

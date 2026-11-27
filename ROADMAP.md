@@ -155,18 +155,20 @@ Package checks can start in CI as soon as both Release builds are available.
 
 ### 7.2 Close gaps in release acceptance
 
-- [ ] Map each [release criterion](docs/development/acceptance.md) to a named
+- [x] Map each [release criterion](docs/development/acceptance.md) to a named
   test, platform and saved result. Reuse the 1,000-request protocol test,
   CLI/MCP parity, batch equivalence on 1,000 and 10,000 files, deterministic
   top-K at 1/2/4/8 workers, shared-work counters and scheduler tests.
-- [ ] Extend the read-only workspace and working-directory checks to all five
+- [x] Extend the read-only workspace and working-directory checks to all five
   tools. Trace process-owned file writes, child processes and network activity
   on Windows and Linux. Verify fresh results after edits and deletion in the
   same session and instrument request-owned objects through cleanup.
-- [ ] Fill uncovered platform-specific filesystem checks, including replacement
+- [x] Fill uncovered platform-specific filesystem checks, including replacement
   during traversal, handle validation and the changed-read retry. Exercise
   cancellation before publication, batch child cleanup, overload and EOF under
   concurrent work. Record which assertions each platform actually exercised.
+
+See the [release evidence matrix and verification record](docs/development/release-evidence.md).
 
 ### 7.3 Exercise malformed input and sustained concurrency
 
@@ -236,10 +238,116 @@ Package checks can start in CI as soon as both Release builds are available.
 - [ ] Select release sandbox profiles and large-file opt-in policy.
 - [ ] Decide whether a future stateless pagination API is useful.
 
-## After MVP
+## 8. After MVP — file skeletons, call graphs and agent workflows
 
-Consider outline, node_at, symbol_search templates, query_explain and file_metrics.
-Semantic call graphs, renaming and source rewriting remain outside the initial scope.
+Start with Python and C++, the two languages covered by the existing OpenCode
+fixtures. Deliver a usable skeleton first, then reuse its symbol locations to
+root a call graph. Qualify each tool and language independently. codeTree's
+file skeleton and caller/callee tools and mcp-server-tree-sitter's symbol and
+usage queries provide reference workflows. [codeTree](https://github.com/ThinkyMiner/codeTree#readme)
+and [mcp-server-tree-sitter feature matrix](https://github.com/wrale/mcp-server-tree-sitter/blob/main/FEATURES.md)
+
+### 8.1 Extract a file skeleton
+
+- [ ] Introduce `file_skeleton` with an explicit grammar and one workspace-relative
+  file. Return declarations in source order with kind, name, enclosing declaration,
+  compact signature and source range. Use the existing zero-based rows and UTF-8
+  byte coordinates. Include enough information to select one overload or nested
+  definition in a subsequent request.
+- [ ] Extract signatures from grammar fields. Cover multiline signatures, return
+  types, Python decorators and nested definitions, C++ namespaces, class members,
+  templates, declarations and out-of-line definitions. Omit executable bodies and
+  docstrings. Bound signature length, entry count and serialized response bytes.
+  Surface clipping, unfinished extraction and syntax errors separately.
+- [ ] Publish strict schemas and route MCP and `treemcp call file_skeleton` through
+  the same runner. Compare both results to hand-authored outlines on Windows and
+  Linux, including empty files, non-ASCII names and a unique sentinel inside a
+  body that must never appear in the response. Measure the serialized result
+  with the Gemma tokenizer on short files and files dominated by function bodies.
+
+### 8.2 Trace callers and callees
+
+- [ ] Introduce `call_graph` for a root definition selected by language, path and
+  declaration location. Accept the location from a skeleton and check the expected
+  qualified name against the current file. Return a diagnostic for a stale or
+  ambiguous selection. Allow a known root to be queried directly. Start with
+  direct callers or callees at depth one. Accept explicit workspace paths and
+  existing traversal filters to bound cross-file lookup.
+- [ ] Collect definitions and call sites within one request using the existing
+  workspace reader. Reuse each file/grammar parse and release all workspace-derived
+  data at completion or cancellation. Resolve supported direct calls using lexical
+  scope and explicit qualification or imports. Represent ambiguous candidates and
+  unresolved sites separately, with the spelling, location and reason. Cover
+  overloads, shadowed names, indirect calls and dynamic dispatch. Define which
+  edges can be followed in each grammar. [Request-local state](docs/adr/request-state.md)
+- [ ] Return a directed node/edge list with caller, callee and call-site evidence.
+  Add bounded multi-hop traversal for call trees, deduplicate nodes, preserve
+  distinct call sites and stop expanding cycles. Choose deterministic ordering
+  and documented depth, file, node, edge, response and deadline limits. Report
+  scanned scope, truncation and incomplete scans so an empty incoming result can
+  be interpreted within the examined files and supported resolution rules.
+- [ ] Compare MCP and CLI with hand-labelled graphs for both directions, including
+  a cross-file chain, unrelated functions with the same name, a diamond, recursion
+  and a dynamic call. Assert exact sites and resolution status, fresh results
+  after edits/deletion, deterministic limits, ignore rules and cancellation.
+  Measure reads, parses, memory and latency for an incoming workspace search.
+- [ ] Extend the support matrix to C, Rust, JavaScript, TypeScript, TSX, Go and
+  Java as their fixtures pass. Expose per-language skeleton and graph support
+  through discovery and return an actionable error for unsupported combinations.
+  Exercise explicit C/C++ selection for shared headers.
+
+### 8.3 Teach the installed skill to choose and combine tools
+
+- [ ] Add the decision table below to the shipped skill as each capability becomes
+  available. Put worked MCP and equivalent CLI calls in its references. Use the
+  advertised capabilities and the configured workspace. Use the CLI fallback on
+  connection loss or absent MCP tools as described in the existing guide. Handle
+  rejected paths, query diagnostics and partial results in the active transport.
+  [Structural-search skill](integrations/opencode-v2/.opencode/skills/structural-search/SKILL.md)
+  and [CLI reference](integrations/opencode-v2/.opencode/skills/structural-search/references/cli-call.md)
+
+| User's question | First action | When to take another step |
+| --- | --- | --- |
+| What API does this file expose? | Get its skeleton. | Stop once the signatures answer the question. For implementation details, inspect only the chosen declaration with a focused capture or a client read of its range. |
+| Where does this syntax pattern occur? | Run one `structural_search` with a narrow capture. | If the grammar is uncertain, inspect a shallow `syntax_tree` and check the query with `query_validate`. |
+| Where do several independent patterns occur in the same files? | Send one `batch_search` with shared paths and filters, an ID and grammar per query. | Inspect each item's diagnostics and completion flags. Split different scopes and retry only the items that need correction. |
+| Who calls this method? What does it call? | Run `call_graph` in the requested direction at depth one. | If the root is ambiguous, select it from the skeleton first. Inspect a reported call site before attributing an ambiguous target. |
+| How does execution reach another function? | Request a bounded multi-hop graph from the known endpoint, in the relevant direction. | Follow supported edges until the question is answered or the evidence runs out. Widen scope or depth only when a reported boundary affects the answer. |
+
+- [ ] Include an end-to-end example starting with an unfamiliar class, selecting
+  one method from its skeleton, then tracing its callers. Pass the returned
+  location into the graph request. Keep dependent steps sequential.
+  `batch_search` accepts Tree-sitter queries over a shared scope. Skeleton and
+  graph calls use their own tool schemas. Show how to report an incomplete scan,
+  unresolved dispatch and zero-based rows in the final answer.
+
+### 8.4 Verify tool selection and token cost with Gemma
+
+- [ ] Extend the existing OpenCode 2.1.4 harness with the instruction-tuned
+  Gemma 4 26B A4B. Reuse the documented QAT Q4 / llama.cpp setup as a baseline.
+  Record the exact model and tokenizer revisions, quantization, runtime build,
+  chat template, decoding settings, context limit, skill and executable revision.
+  [Existing client runs](docs/integrations/opencode-v2.md) and
+  [Google's model card](https://huggingface.co/google/gemma-4-26B-A4B-it)
+- [ ] Give the model task-only prompts for every row above, plus ambiguous roots,
+  incomplete scans and disabled MCP. Run connected MCP and CLI fallback against
+  the same fixtures. Score actual tool names, arguments, order, calls and final
+  path/line evidence against acceptable routes and hand-labelled answers. Include
+  a case solved with one skeleton, one requiring a batch and one requiring the
+  skeleton-to-graph sequence. Reject invented edges and unqualified absence
+  claims on partial results.
+- [ ] Run paired trials on held-out prompts with the current and revised skills
+  against the same tools and model. For file-overview tasks also compare with
+  reading the full file. Record repeated-run success counts, unnecessary calls,
+  full-file reads, latency and model-visible input/output tokens, including tool
+  schemas, skill text and results. Publish per-task outcomes and variability.
+  Accept the new workflow when fixture contracts pass, existing tasks retain
+  correctness and correct overview answers on body-heavy files use fewer median
+  input tokens than full reads. Set routing reliability targets from the baseline
+  before evaluating the revised skill.
+
+Other post-MVP candidates include node_at, symbol_search templates, query_explain,
+file_metrics, compiler-backed call resolution, renaming and source rewriting.
 
 ## Notes
 

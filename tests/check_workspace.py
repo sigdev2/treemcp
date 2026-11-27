@@ -16,10 +16,10 @@ if not __debug__:
 
 
 @contextmanager
-def wire_session(executable, root, *options, default_root=False):
+def wire_session(executable, root, *options, default_root=False, prefix=(), reply_sizes=None):
     command = [executable, *options] if default_root else [executable, "--workspace-root", root, *options]
     with subprocess.Popen(
-        command, cwd=root if default_root else root.parent,
+        [*prefix, *command], cwd=root if default_root else root.parent,
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         text=True, encoding="utf-8",
     ) as child:
@@ -37,7 +37,10 @@ def wire_session(executable, root, *options, default_root=False):
 
         def receive():
             line = child.stdout.readline()
-            return json.loads(line), len(line.encode("utf-8"))
+            size = len(line.encode("utf-8"))
+            if reply_sizes is not None:
+                reply_sizes.append(size)
+            return json.loads(line), size
 
         def request(method, params):
             expected = send(method, params)
@@ -209,6 +212,7 @@ def check_filters(call, root, outside):
             assert call(path="test.py").get("isError")
             result = call(paths=["."], include=["src/sub/local.py"])
             assert not result["incomplete"] and captures(result) == [("src/sub/local.py", "identifier")], result
+        print("Windows: hidden attribute and write-sharing conflict exercised")
     else:
         (root / "filelink.py").symlink_to(outside / "outside.py")
         os.mkfifo(root / "fifo.py")
@@ -216,6 +220,7 @@ def check_filters(call, root, outside):
             local.bind(str(root / "socket.py"))
             assert call(path="socket.py").get("isError")
         assert call(path="fifo.py").get("isError")
+        print("POSIX: FIFO and Unix socket rejected")
     assert call(path="link/outside.py").get("isError")
     for path in ("src/reinclude/bad.py", "blocked/inside.py", ".hidden.py", "src/local.py", "nul.py"):
         assert call(path=path).get("isError"), path
@@ -316,6 +321,7 @@ def check_explicit_access(call, root):
                 result = call(paths=["traverse"])
                 assert result["incomplete"] and result["matches"] == [], result
                 assert result["diagnostics"] == [dict(path="traverse", message="Cannot enumerate workspace directory")]
+                print("POSIX: explicit traversal and denied directory listing exercised")
         finally:
             folder.chmod(0o755)
 
@@ -357,10 +363,14 @@ def check_directory_swap(call, root, outside):
         for _ in range(60):
             result = call(path="race/outside.py")
             assert result.get("isError") or captures(result) == [("race/outside.py", "inside")], result
+            walked = call(paths=["race"])
+            assert captures(walked) in ([], [("race/outside.py", "inside")]), walked
     finally:
         stop.set()
         thread.join(5)
     assert not thread.is_alive() and not errors, errors
+    print("Directory replacement during explicit and recursive selection:",
+          "junction" if os.name == "nt" else "symlink")
 
 
 def main():
@@ -382,6 +392,7 @@ def main():
                 root.rename(root.parent / "pinned")
                 write(root, "test.py", "wrong_root\n")
                 assert captures(call(path="test.py")) == [("test.py", "identifier")]
+                print("POSIX: renamed root remained pinned")
 
 
 if __name__ == "__main__":

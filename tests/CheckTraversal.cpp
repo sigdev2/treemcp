@@ -5,6 +5,7 @@
 #include <dirent.h>
 #include <QFile>
 #include <QTemporaryDir>
+#include <sys/stat.h>
 
 namespace {
 
@@ -13,8 +14,23 @@ namespace {
 int markerPosition = 0;
 int listed = 0;
 int endError = 0;
+bool changeIdentity = false;
 
 } // namespace
+
+extern "C" int __real_fstat(int fd, struct stat* info);
+extern "C" int __wrap_fstat(int fd, struct stat* info);
+
+extern "C" int __wrap_fstat(int fd, struct stat* info)
+{
+    const int status = __real_fstat(fd, info);
+    if (status == 0 && changeIdentity && S_ISREG(info->st_mode)) {
+        // Model an opened regular file differing from the preceding fstatat observation.
+        ++info->st_ino;
+        changeIdentity = false;
+    }
+    return status;
+}
 
 extern "C" dirent* __real_readdir(DIR* directory);
 extern "C" dirent* __wrap_readdir(DIR* directory);
@@ -49,6 +65,11 @@ int main()
     }
     marker.close();
     const treemcp::Workspace workspace { treemcp::WorkspaceNode::openRoot(directory.path()), {} };
+    changeIdentity = true;
+    if (workspace.root->child(QStringLiteral("marker.py")).kind() != treemcp::NodeKind::Error || changeIdentity) {
+        return 1;
+    }
+    std::puts("POSIX rejected a mismatched inode at opened-handle validation");
     const treemcp::FileScope scope { { "." }, {}, {}, { ".py" } };
     const auto scan =
         [&](int position, int error, const QStringList& expectedMessages, const QStringList& expectedFiles) {

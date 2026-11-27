@@ -1,6 +1,7 @@
 #include "Workspace.hpp"
 
 #include <cerrno>
+#include <cstdio>
 #include <QFile>
 #include <QTemporaryDir>
 #include <unistd.h>
@@ -85,5 +86,6 @@ int main()
         return 1;
     }
     writer = -1;
+    std::puts("POSIX stable read, append and retry, repeated change, EINTR, I/O error and interruption exercised");
     return 0;
 }

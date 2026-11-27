@@ -110,6 +110,33 @@ jobs:
           if [[ "$RUNNER_OS" == Windows ]]; then program+=".exe"; fi
           python tests/check_sdk.py "$program" 2>&1 | tee build/ci/sdk.log
           python tests/check_ignore.py "$program" --git 2>&1 | tee build/ci/ignore.log
+      - name: Trace all five tools from startup through shutdown
+        if: endsWith(matrix.preset, '-release')
+        timeout-minutes: 5
+        run: |
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            tracer="$RUNNER_TEMP/nttrace"
+            mkdir -p "$tracer"
+            for asset in NtTrace64.exe NtTrace.cfg; do
+              curl --fail --silent --show-error --location --retry 3 \
+                "https://github.com/rogerorr/NtTrace/releases/download/v1.1/$asset" -o "$tracer/$asset"
+            done
+            (cd "$tracer" && sha256sum --check - <<'HASHES'
+          7c60fc1783d3eeaf3d6cfd85b8b479f4600b464e4c6b325ac9114dc6e2ab0830  NtTrace64.exe
+          55b742dfd998b82137bbfec47be85be0675ce7363cfa54dad84ff288488c7a57  NtTrace.cfg
+          HASHES
+            )
+            echo "NtTrace v1.1" >> build/ci/environment.txt
+            objdump -p "build/$PRESET/treemcp.exe" | grep 'DLL Name:' > build/ci/runtime-libraries.txt
+            python -B tests/check_process_trace.py "build/$PRESET/treemcp.exe" build/ci/trace \
+              --nttrace "$tracer/NtTrace64.exe" | tee build/ci/trace.log
+          else
+            sudo apt-get update
+            sudo apt-get install -y strace
+            strace --version >> build/ci/environment.txt
+            ldd "build/$PRESET/treemcp" > build/ci/runtime-libraries.txt
+            python -B tests/check_process_trace.py "build/$PRESET/treemcp" build/ci/trace | tee build/ci/trace.log
+          fi
       - name: Package and test the tagged release
         if: github.event_name == 'push' && github.ref_type == 'tag' && endsWith(matrix.preset, '-release')
         working-directory: build/${{ matrix.preset }}

@@ -10,9 +10,10 @@ COMMON = {
     "protocol.decoder", "protocol.stdio", "search.stdio", "search.cli",
     "search.queries", "scheduler.workers", "scheduler.stdio",
     "workspace.ignore-pattern", "workspace.ignore", "workspace.stdio",
-    "batch.correctness", "batch.corpus",
+    "batch.correctness", "batch.corpus", "scheduler.publication",
+    "workspace.changed-read", "workspace.read-only", "workspace.entry-replacement",
 }
-LINUX = {"batch.shared-work", "workspace.changed-read", "workspace.traversal-limits"}
+LINUX = {"batch.shared-work", "workspace.traversal-limits"}
 
 
 def main():
@@ -25,7 +26,7 @@ def main():
     if args.preset.startswith("linux-"):
         required.update(LINUX)
     if args.preset == "linux-asan":
-        required.add("protocol.session-memory")
+        required.update(("protocol.session-memory", "search.request-cleanup"))
 
     tests = json.loads(args.inventory.read_text(encoding="utf-8"))["tests"]
     enabled = {test["name"] for test in tests

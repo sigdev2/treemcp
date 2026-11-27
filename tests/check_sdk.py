@@ -1,6 +1,7 @@
 """Optional compatibility check using the official MCP Python SDK. Pass the server executable."""
 
 import asyncio
+from importlib.metadata import version
 import json
 from pathlib import Path
 import sys
@@ -67,3 +68,4 @@ async def check(executable: Path, workspace: Path) -> None:
 if __name__ == "__main__":
     with TemporaryDirectory() as directory:
         asyncio.run(check(Path(sys.argv[1]), Path(directory)))
+    print(f"MCP Python SDK {version('mcp')}: handshake, discovery and schemas for all five tools passed")

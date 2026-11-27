@@ -21,6 +21,7 @@ thread_local const TSTree* ownedTree = nullptr;
 using Clock = std::chrono::steady_clock;
 Clock::time_point delayCleanupUntil {};
 bool failParse = false;
+std::atomic_bool* cancelOnTreeRelease = nullptr;
 
 } // namespace
 
@@ -71,6 +72,9 @@ extern "C" void __wrap_ts_tree_delete(TSTree* tree)
         if (delayCleanupUntil != Clock::time_point {}) {
             std::this_thread::sleep_until(delayCleanupUntil);
         }
+        if (cancelOnTreeRelease) {
+            cancelOnTreeRelease->store(true);
+        }
         ownedTree = nullptr;
         --liveTrees;
     }
@@ -94,7 +98,7 @@ int main()
                                      { "query", "(identifier) @name" } });
     }
     QJsonObject args { { "paths", QJsonArray { ".", "a.py", "." } }, { "queries", queries } };
-    const std::atomic_bool cancelled = false;
+    std::atomic_bool cancelled = false;
     treemcp::Scheduler scheduler(4);
     auto deadline = Clock::now() + std::chrono::seconds(30);
     const auto call = [&] {
@@ -171,5 +175,14 @@ int main()
     {
         return 1;
     }
+    delayCleanupUntil = {};
+    deadline = Clock::now() + std::chrono::seconds(10);
+    cancelOnTreeRelease = &cancelled;
+    args.insert("paths", QJsonArray { "." });
+    const auto stopped = call();
+    if (!cancelled || !stopped.isEmpty() || liveTrees != 0 || ownershipError) {
+        return 1;
+    }
+    qInfo("Cancellation during batch child cleanup released every live tree before return");
     return 0;
 }

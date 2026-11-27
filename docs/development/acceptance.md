@@ -1,9 +1,8 @@
 # Release acceptance criteria
 
-The [current tests](testing.md) cover the build, MCP tools, workspace filters, handle checks, per-request freshness,
-batch sharing, deterministic limits and batch cancellation.
-Before version 1.0.0, implement the suites below and retain their fixture revisions,
-toolchain versions, configuration and results with the release evidence.
+Use the [evidence matrix](release-evidence.md) to find the test, platform and
+saved result for each criterion below. Retain the fixture revision, toolchain,
+configuration and results for the candidate being qualified.
 
 ## Freshness and persistence
 

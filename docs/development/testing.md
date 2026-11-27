@@ -16,6 +16,27 @@ Each build job uploads a `ci-<preset>` artifact with the commit and toolchain,
 configure/build logs, CTest inventory, JUnit results and test output as each
 becomes available. Provisioning failures appear in the Actions job log.
 
+The [release evidence matrix](release-evidence.md) maps each criterion to its
+platform and result. Release jobs also save loaded or imported library names,
+a trace verdict and the process-specific native logs. The Windows job verifies
+the SHA-256 hashes of the NtTrace 1.1 executable and syscall definitions.
+
+To reproduce the trace, run the matching command with a new output directory.
+On Linux, a root test process uses `setpriv` to drop its mode-bit write override.
+The fixture denies writes to both directories and its
+source file before starting the server. The verifier follows server threads
+from launch through EOF, counts actual fixture reads and matches protocol writes
+to the frames the client received. On Linux it allows Qt eventfd notifications.
+On Windows it checks file open rights, device controls and the output handle.
+
+```sh
+python3 -B tests/check_process_trace.py build/linux-release/treemcp build/linux-trace
+python -B tests/check_process_trace.py build/windows-release/treemcp.exe build/windows-trace --nttrace C:/tools/NtTrace64.exe
+```
+
+The Windows tracer reads the matching `NtTrace.cfg` from beside its executable.
+Use the [pinned release](https://github.com/rogerorr/NtTrace/releases/tag/v1.1).
+
 ## Local checks
 
 Every build helper runs CTest after compilation. Current checks are:
