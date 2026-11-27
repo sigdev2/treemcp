@@ -1,0 +1,180 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Check project C++ formatting
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format-15
+          clang-format-15 --version
+          find src -type f \( -name '*.cpp' -o -name '*.hpp' \) -print0 |
+            xargs -0 clang-format-15 --dry-run --Werror
+
+  build:
+    name: ${{ matrix.preset }}
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [windows-debug, windows-release, linux-debug, linux-release, linux-asan]
+    runs-on: ${{ startsWith(matrix.preset, 'windows-') && 'windows-2022' || 'ubuntu-22.04' }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      PRESET: ${{ matrix.preset }}
+      CC: gcc
+      CXX: g++
+      CMAKE_BUILD_PARALLEL_LEVEL: 2
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Install Qt downloader
+        run: python -m pip install aqtinstall==3.3.0
+      - name: Install Linux Qt and ICU
+        if: runner.os == 'Linux'
+        working-directory: ${{ runner.temp }}
+        run: |
+          python -m aqt install-qt linux desktop 6.4.1 gcc_64 -O Qt --archives qtbase icu
+          kit="$RUNNER_TEMP/Qt/6.4.1/gcc_64"
+          echo "$kit/bin" >> "$GITHUB_PATH"
+          echo "CMAKE_PREFIX_PATH=$kit" >> "$GITHUB_ENV"
+      - name: Install Windows Qt and matching MinGW
+        if: runner.os == 'Windows'
+        shell: pwsh
+        working-directory: ${{ runner.temp }}
+        run: |
+          python -m aqt install-qt windows desktop 6.4.1 win64_mingw -O Qt --archives qtbase
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -m aqt install-tool windows desktop tools_mingw90 qt.tools.win64_mingw900 -O Qt
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $kit = Join-Path $env:RUNNER_TEMP 'Qt/6.4.1/mingw_64'
+          $compiler = Join-Path $env:RUNNER_TEMP 'Qt/Tools/mingw1120_64/bin'
+          Get-Item "$compiler/g++.exe", "$compiler/mingw32-make.exe"
+          "$kit/bin" >> $env:GITHUB_PATH
+          $compiler >> $env:GITHUB_PATH
+          "CMAKE_PREFIX_PATH=$kit" >> $env:GITHUB_ENV
+
+      - name: Record build environment
+        run: |
+          mkdir -p build/ci
+          {
+            git rev-parse HEAD
+            echo "$PRESET $RUNNER_OS $RUNNER_ARCH"
+            git --version
+            python --version
+            cmake --version
+            ctest --version
+            gcc --version
+            g++ --version
+            qmake -query QT_VERSION
+            if [[ "$RUNNER_OS" == Windows ]]; then
+              mingw32-make --version
+              test "$(g++ -dumpfullversion)" = 11.2.0
+            else
+              ninja --version
+            fi
+          } > build/ci/environment.txt
+          cat build/ci/environment.txt
+      - name: Configure and verify vendored dependencies
+        run: cmake --preset "$PRESET" "-DPython3_EXECUTABLE=$(python -c 'import sys; print(sys.executable)')" 2>&1 | tee build/ci/configure.log
+      - name: Build
+        run: cmake --build --preset "$PRESET" 2>&1 | tee build/ci/build.log
+      - name: Verify test inventory and run CTest
+        run: |
+          ctest --preset "$PRESET" --show-only=json-v1 > build/ci/inventory.json
+          python scripts/check-ci-inventory.py "$PRESET" build/ci/inventory.json
+          ctest --preset "$PRESET" --output-junit "$PWD/build/ci/results.xml"
+      - name: Check pinned MCP SDK and Git ignore fixtures
+        if: endsWith(matrix.preset, '-release')
+        run: |
+          python -m pip install mcp==1.26.0
+          python -m pip show mcp > build/ci/sdk-version.txt
+          program="build/$PRESET/treemcp"
+          if [[ "$RUNNER_OS" == Windows ]]; then program+=".exe"; fi
+          python tests/check_sdk.py "$program" 2>&1 | tee build/ci/sdk.log
+          python tests/check_ignore.py "$program" --git 2>&1 | tee build/ci/ignore.log
+      - name: Package and test the tagged release
+        if: github.event_name == 'push' && github.ref_type == 'tag' && endsWith(matrix.preset, '-release')
+        working-directory: build/${{ matrix.preset }}
+        run: |
+          version=$(sed -n 's/^CMAKE_PROJECT_VERSION:STATIC=//p' CMakeCache.txt | tr -d '\r')
+          if [[ "$GITHUB_REF_NAME" != "v$version" ]]; then
+            echo "Tag $GITHUB_REF_NAME does not match project version $version" >&2
+            exit 1
+          fi
+          cpack --config CPackConfig.cmake
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            archive="treemcp-$version-win64.zip"
+            program="treemcp-$version-win64/bin/treemcp.exe"
+          else
+            archive="treemcp-$version-Linux.tar.gz"
+            program="treemcp-$version-Linux/bin/treemcp"
+          fi
+          mkdir unpacked
+          cd unpacked
+          cmake -E tar xf "../packages/$archive"
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            PATH="$(cygpath -u "$SYSTEMROOT")/System32" "./$program" --self-check
+          else
+            env -u LD_LIBRARY_PATH "./$program" --self-check
+          fi
+      - name: Save release archive
+        if: github.event_name == 'push' && github.ref_type == 'tag' && endsWith(matrix.preset, '-release')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: package-${{ matrix.preset }}
+          path: |
+            build/${{ matrix.preset }}/packages/*.zip
+            build/${{ matrix.preset }}/packages/*.tar.gz
+          if-no-files-found: error
+      - name: Save build and test evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ci-${{ matrix.preset }}
+          path: |
+            build/ci/
+            build/${{ matrix.preset }}/Testing/Temporary/LastTest.log
+
+  release:
+    name: Publish GitHub Release
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: [format, build]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Collect tested archives
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: package-*-release
+          merge-multiple: true
+          path: packages
+      - name: Publish both archives for the existing tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          windows="packages/treemcp-$version-win64.zip"
+          linux="packages/treemcp-$version-Linux.tar.gz"
+          test -s "$windows"
+          test -s "$linux"
+          gh release create "$GITHUB_REF_NAME" "$windows" "$linux" \
+            --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes

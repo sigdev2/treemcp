@@ -1,3 +1,4 @@
+ed63a6ab7488125eb27782a7cf62a4c0564b5b0dca85ed40bcffae9b26fea3fd  dependencies.lock.json
 0929027be2ff54627be560f3bafc1af59e81ac6d5a8d5864455601a0dbee50ff  tree-sitter/lib/src/point.h
 0e8d1a21e0d60981e762989108231df6610d95591892f631c6c78a9ef831a2ab  tree-sitter/lib/src/error_costs.h
 10be747ea4c733ca181dc43d55d155ac8e5b8caa247079621cca0ce633347bfb  tree-sitter/lib/src/reusable_node.h

@@ -1,5 +1,23 @@
 # Testing
 
+## Continuous integration
+
+The GitHub Actions workflow runs on pushes and pull requests and supports manual
+dispatch. It builds the Windows/MinGW and Linux Debug and Release presets plus
+`linux-asan` with Qt 6.4.1. A separate job checks `src/` with clang-format 15.
+Each configuration verifies every file in `third_party/` against `SHA256SUMS`,
+including the dependency lock file. Update the manifest when vendored inputs change.
+
+Before running CTest, CI checks the enabled suite names against
+[`check-ci-inventory.py`](../../scripts/check-ci-inventory.py). Include new
+mandatory suites in the inventory for their platforms. Both Release jobs also
+run the MCP Python SDK 1.26.0 check and compare ignore fixtures with Git.
+Each build job uploads a `ci-<preset>` artifact with the commit and toolchain,
+configure/build logs, CTest inventory, JUnit results and test output as each
+becomes available. Provisioning failures appear in the Actions job log.
+
+## Local checks
+
 Every build helper runs CTest after compilation. Current checks are:
 
 - `bootstrap.runtime`: all nine grammar ABIs load; fixtures parse; queries return the

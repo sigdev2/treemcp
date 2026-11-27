@@ -18,3 +18,17 @@ an archive of the whole working directory, which may contain ignored local setti
 or logs. CPack source packaging is explicitly blocked; use `git archive` on a reviewed
 commit for source distribution. Release evidence should record toolchain versions without usernames,
 machine names, private directory layouts or authentication data.
+
+## Binary releases on GitHub
+
+To publish a reviewed version, set the project version in `CMakeLists.txt` and
+push a tag of the form `vX.Y.Z` at that commit. Pushing the tag starts automatic
+publication. For example, tag `v0.1.0` requires project version `0.1.0`.
+
+The Windows and Linux Release jobs package their tested x64 binaries with CPack,
+extract each archive and run `treemcp --self-check`. Once formatting and all
+five build configurations pass, the release job publishes both archives in
+GitHub Releases with generated notes. The assets are named
+`treemcp-X.Y.Z-win64.zip` and `treemcp-X.Y.Z-Linux.tar.gz`.
+Only the release job requests `contents: write` for the built-in GitHub token.
+Branch pushes, pull requests and manual CI runs perform the usual checks.

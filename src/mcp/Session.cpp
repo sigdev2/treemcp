@@ -264,8 +264,7 @@ QJsonObject Session::initialize(const QJsonValue& id, const QJsonObject& params)
         id,
         { { "protocolVersion", "2025-11-25" },
           { "capabilities", QJsonObject { { "tools", QJsonObject {} } } },
-          { "serverInfo",
-            QJsonObject { { "name", "treemcp" }, { "version", QString::fromLatin1(VERSION) } } } });
+          { "serverInfo", QJsonObject { { "name", "treemcp" }, { "version", QString::fromLatin1(VERSION) } } } });
 }
 
 } // namespace treemcp

@@ -135,16 +135,99 @@ Version 0.1.0 is the bootstrap; 1.0.0 requires all release gates below.
 
 ## 7. Quality, performance and delivery
 
-- [ ] Add Windows and Linux CI, formatting checks and dependency integrity checks.
-- [ ] Add protocol, security, no-persistence, determinism and concurrency acceptance suites.
-- [ ] Add fuzz targets for JSON-RPC, queries, paths, globs, predicates and response construction.
-- [ ] Add TSan coverage, ASan/UBSan coverage and a 24-hour concurrent soak run.
-- [ ] Publish correctness-checked sequential/parallel/batch benchmarks with pinned corpora.
-- [ ] Measure cancellation latency, read/parse amplification, peak memory and fairness.
-- [ ] Establish performance gates on a dedicated runner; publish no unmeasured speed claims.
-- [ ] Generate a release SBOM including Qt and package required runtime libraries and notices.
-- [ ] Review the threat model, audit runtime dependencies and sign release artifacts.
-- [ ] Pass all release acceptance checks for freshness, protocol, filesystem safety, batching and client integration before 1.0.0.[^release-checks]
+Use the [current test inventory](docs/development/testing.md) as the baseline.
+Start with 7.1. Acceptance, hardening and benchmark work can then proceed
+in parallel. Use the benchmark results to set thresholds before enforcing them.
+Package checks can start in CI as soon as both Release builds are available.
+
+### 7.1 Reproduce the existing checks in CI
+
+- [x] Add GitHub Actions jobs for the existing Windows/MinGW and Linux Debug
+  and Release presets. Provision compatible Qt and compiler versions, Python
+  and Git from a clean checkout. Run CTest and check the expected suite names
+  on each platform so a missing Python interpreter cannot produce a green job.
+- [x] Run clang-format 15 in check mode and keep CMake's vendored SHA-256
+  verification enabled. Check manifest coverage as well as listed hashes so a
+  new vendored input cannot enter a build without a checksum.
+- [x] Run the Linux ASan/UBSan preset and the pinned MCP Python SDK check.
+  Retain the commit, tool versions, preset, test inventory and failure logs.
+  Use these runs as the per-change baseline.
+
+### 7.2 Close gaps in release acceptance
+
+- [ ] Map each [release criterion](docs/development/acceptance.md) to a named
+  test, platform and saved result. Reuse the 1,000-request protocol test,
+  CLI/MCP parity, batch equivalence on 1,000 and 10,000 files, deterministic
+  top-K at 1/2/4/8 workers, shared-work counters and scheduler tests.
+- [ ] Extend the read-only workspace and working-directory checks to all five
+  tools. Trace process-owned file writes, child processes and network activity
+  on Windows and Linux. Verify fresh results after edits and deletion in the
+  same session and instrument request-owned objects through cleanup.
+- [ ] Fill uncovered platform-specific filesystem checks, including replacement
+  during traversal, handle validation and the changed-read retry. Exercise
+  cancellation before publication, batch child cleanup, overload and EOF under
+  concurrent work. Record which assertions each platform actually exercised.
+
+### 7.3 Exercise malformed input and sustained concurrency
+
+- [ ] Add opt-in bounded fuzz targets for JSON-RPC framing and decoding, query
+  compilation, path validation, globs, predicates and response construction.
+  Seed them from existing fixtures, run short smoke jobs per change and longer
+  scheduled runs under ASan/UBSan. Keep minimized failures as regression tests.
+- [ ] Add a separate Linux TSan preset for the scheduler, transport and batch
+  workers. Run it on concurrent workloads and investigate each race report.
+- [ ] Run a short CI smoke test of the soak driver, then run it for 24 hours
+  against a release candidate. Mix searches, batches, cancellation, overload
+  and workspace edits. Record the workload seed, progress, latency, peak and
+  time-series memory, plus shutdown status. Require continued progress, clean
+  shutdown and bounded memory after warm-up.
+
+### 7.4 Measure performance and set regression thresholds
+
+- [ ] Pin the corpus generator or corpus revision, checksums, queries and
+  expected matches. Compare sequential single searches, concurrent singles
+  and one batch over the same scopes and limits in a persistent stdio session.
+  Verify captures, ranges and completion flags against the oracle before
+  accepting any timing sample.
+- [ ] Run Release builds at 1/2/4/8 workers. Record elapsed time, unique files
+  and actual reads, required file/grammar pairs and actual tree builds, query
+  compiles and executions, response bytes and peak process memory. Under a
+  competing batch, measure small-search latency and time from cancellation to
+  worker release. Keep test instrumentation outside the production protocol.
+- [ ] Repeat measurements on a dedicated runner with recorded hardware,
+  toolchain and OS page-cache conditions. Publish raw samples, median and tail
+  latency, variability and reproduction commands. Derive regression thresholds
+  from that baseline and verify the gate detects a controlled slowdown before
+  making it a release requirement. Base speed claims on the published runs.
+
+### 7.5 Verify and sign the release packages
+
+- [ ] Build the Windows ZIP and Linux tar.gz through the existing CPack install
+  rules. Extract each in a clean compatible environment and exercise
+  `--self-check`, stdio discovery, a CLI search and the installed OpenCode skill
+  files without a development Qt or compiler installation.
+- [ ] Generate an SBOM for each archive from its actual contents and the
+  vendored lock file. Account for Qt, compiler runtimes, transitive libraries,
+  yyjson, Tree-sitter and all shipped grammars, including local changes. Match
+  binary hashes and notices to the shipped components and document host-provided
+  runtime dependencies.
+- [ ] Review the [threat model](docs/internals/security.md) against the runtime
+  dependency audit and acceptance results. Resolve release-blocking findings.
+  Select a signing identity and verification procedure, sign the final
+  artifacts or their checksum manifest, and verify both archives from a clean
+  environment using the published verification instructions.
+
+### 7.6 Qualify the 1.0.0 candidate
+
+- [ ] Resolve the [stable batch-limit contract](docs/reference/requirements.md#open-contract-decisions)
+  and check that advertised schemas match the enforced limits before tagging.
+- [ ] Run the pinned OpenCode 2.1.4 scenarios with the packaged executable and
+  skill, including MCP discovery, partial results, CLI fallback and an
+  unavailable binary. Record the client, model, configuration and outcomes.
+- [ ] Collect the acceptance matrix, sanitizer and fuzz results, 24-hour soak
+  report, benchmark comparison, dependency review, SBOMs, notices, archive
+  hashes and signature verification for the same candidate revision. Close
+  stage 7 and tag 1.0.0 only when all required checks pass.[^release-checks]
 
 ## Open design decisions
 

@@ -19,8 +19,9 @@ process is used by the executable. Development scripts are separate from runtime
 | Java grammar | [v0.23.5](https://github.com/tree-sitter/tree-sitter-java/releases/tag/v0.23.5) |
 
 Exact commits are recorded in [dependencies.lock.json](../../third_party/dependencies.lock.json).
-[SHA256SUMS](../../third_party/SHA256SUMS) covers every vendored source/header,
-grammar metadata file and license. CMake validates these hashes on every configuration.
+[SHA256SUMS](../../third_party/SHA256SUMS) covers the lock file and every vendored
+source, header, grammar metadata file and license. On every configuration CMake
+checks the hashes and rejects missing, unlisted or duplicate files.
 The runtime's `lib/include` and `lib/src`, and each grammar's generated `src`, are
 included directly. Grammar generators are not needed to build the repository.
 
