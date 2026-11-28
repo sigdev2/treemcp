@@ -77,8 +77,8 @@ answer. Retain its output and the packaged binary hash for the 7.6 candidate run
 | --- | --- | --- |
 | Sequential singles, concurrent singles and one batch with a correctness oracle | Both Release | `batch.corpus` provides the correctness baseline. The 7.4 benchmark and pinned environment report are pending. |
 | Operation counts, bytes, peak memory and latency | Both Release | `batch.correctness` and Linux `batch.shared-work` cover functional counts and byte limits. The 7.4 measurement series is pending. |
-| Sanitizers and malformed input | Linux | `ci-linux-asan` saves ASan/UBSan CTest results. The TSan preset and fuzz runs are pending in 7.3. |
-| 24-hour concurrent soak | Candidate runner | The seeded soak and time-series report are pending in 7.3. |
+| Sanitizers and malformed input | Linux | `ci-linux-asan` saves ASan/UBSan CTest results. `ci-linux-fuzz` saves each target's run log, corpus and failure artifacts. `ci-linux-tsan` saves concurrent CTest results and any TSan reports. |
+| 24-hour concurrent soak | Linux candidate runner | `ci-linux-release` includes the short `ci/soak.jsonl`. The candidate run uses the same driver for 86,400 seconds. Verify the binary hash, final verdict, elapsed time and clean shutdowns in the candidate JSONL. |
 | Dedicated-runner gates, dependency audit, threat review and SBOM | Both packages and dedicated runner | Release traces and library inventories cover the exercised binary. Thresholds are pending in 7.4. The package audit, threat review and SBOM are pending in 7.5. |
 
 ## Local verification, 2026-11-27
@@ -92,3 +92,18 @@ inspection, two single searches and two batches. Eight protocol writes matched
 the eight replies. Neither tracer observed a filesystem mutation, child process
 or network operation. The ASan fixture found zero live measured allocations
 after releasing each search reply.
+
+## Local hardening verification, 2026-11-28
+
+On WSL2 Ubuntu 22.04 with Qt 6.4.1 and Clang 15, all seven concurrent TSan
+suites passed three consecutive executions with no reports. The seeded
+ASan/UBSan fuzz targets passed both 15-second and 120-second runs per target.
+The full Linux ASan/UBSan suite passed 25/25. The ordinary Release suites
+passed 23/23 on Linux and 20/20 on Windows.
+
+The local 30-second soak used the Linux Release executable built from
+`aeefe87b308e01e91bb90684ca37517972865ab9`, SHA-256
+`3c6c88abe9355e16e0373c7b0c652c006b85fecf2b7ffa2591de126f631af1af`.
+Seed 7303 completed 1,307 rounds with 1,307 verified edits, cancellations and
+overload rejections, a 41,447,424-byte peak RSS and process exit code zero.
+The 24-hour candidate run uses the same binary and seed.

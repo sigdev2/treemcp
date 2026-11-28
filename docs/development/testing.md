@@ -4,7 +4,8 @@
 
 The GitHub Actions workflow runs on pushes and pull requests and supports manual
 dispatch. It builds the Windows/MinGW and Linux Debug and Release presets plus
-`linux-asan` with Qt 6.4.1. A separate job checks `src/` with clang-format 15.
+`linux-asan`, `linux-tsan` and `linux-fuzz` with Qt 6.4.1. A separate job checks
+`src/` and the native fuzz targets with clang-format 15.
 Each configuration verifies every file in `third_party/` against `SHA256SUMS`,
 including the dependency lock file. Update the manifest when vendored inputs change.
 
@@ -36,6 +37,75 @@ python -B tests/check_process_trace.py build/windows-release/treemcp.exe build/w
 
 The Windows tracer reads the matching `NtTrace.cfg` from beside its executable.
 Use the [pinned release](https://github.com/rogerorr/NtTrace/releases/tag/v1.1).
+
+## Malformed input and sustained concurrency
+
+**Fuzzing.** The fuzz preset uses Linux, Clang 15 (including libFuzzer), Python
+and the Qt kit on the CMake prefix path.
+
+```sh
+cmake --preset linux-fuzz
+cmake --build --preset linux-fuzz
+python3 -B scripts/fuzz-smoke.py build/linux-fuzz build/fuzz-smoke
+```
+
+The three in-process targets exercise the production code and its vendored C
+dependencies under ASan/UBSan. The RPC target compares framing across chunk
+boundaries, decodes records and round-trips serialized replies. The workspace
+target checks selector and component validation, workspace glob compilation,
+and matching against files and directories. The query target compiles C++ and
+Python queries and runs predicates, capture copying and JSON construction on a
+parsed source. It limits query bytes to 2 KiB, input to 8 KiB and copied
+matches to 32. The workspace target accepts up to 4 KiB.
+
+The driver seeds corpora from protocol cases, ignore rules and query fixtures.
+CI mutates each corpus for 15 seconds per change and 900 seconds on the weekly
+schedule. Each target has a 10-second input timeout and a 1,536 MiB RSS limit.
+Keep the target log and failing input from the CI artifact. After a fix, add
+the minimized input under `tests/fuzz/regressions/<rpc|workspace|query>/*.bin`.
+The driver replays each saved input before mutation.
+
+**ThreadSanitizer.** Use the `linux-tsan` configure, build and test presets.
+The CI job builds the pinned Qt Base 6.4.1 Core target with Clang TSan so that
+the detector observes Qt event delivery and semaphore synchronization. It uses
+the ordinary Qt kit for build tools. This test build selects Qt's fork-based
+process launcher because the LLVM 15 TSan runtime aborts in the test client's
+`clone(CLONE_VM | CLONE_VFORK)` path. Configure treemcp with
+`-DCMAKE_PREFIX_PATH=/path/to/qt-tsan-build -DQT_HOST_PATH=/path/to/qt-kit`.
+The exact Qt configure command is in the [CI workflow](../../.github/workflows/ci.yml).
+
+```sh
+cmake --build --preset linux-tsan
+setarch "$(uname -m)" -R ctest --preset linux-tsan
+```
+
+The test preset selects scheduler, stdio transport, publication, batch and
+parallel search workloads. The process-local address layout allows the TSan
+runtime to reserve its shadow mapping. CI saves per-process reports and exits
+on the first report in each process.
+
+**Release soak.** Run the same driver used by Linux Release CI on a machine
+that can stay awake for 24 hours. Give each run a new JSONL filename and pass
+the revision used to build the binary.
+
+```sh
+python3 -B scripts/soak-search.py build/linux-release/treemcp \
+  --revision "$(git rev-parse HEAD)" --seed 7303 --output build/rc-soak.jsonl
+```
+
+Each round overlaps two batch submissions, cancellation of a single search,
+a workspace edit and a scoped search for the new identifier. The client
+correlates replies by ID and checks both batch captures. Four workers serve
+the temporary workspace. The driver closes stdin and verifies exit before
+opening a new process at the 16,384-request session limit.
+
+The JSONL records the binary SHA-256, seed, completed rounds, overload and
+cancellation counts, interval p95 and maximum round latency, current RSS,
+kernel peak RSS and each shutdown. A round must finish within 45 seconds.
+After a 60-second warm-up, peak RSS across all sessions must stay within
+64 MiB of the warm-up high-water mark. CI shortens the duration to 30 seconds
+and warm-up to five. A completed candidate record ends with `passed: true`
+after at least 86,400 seconds.
 
 ## Local checks
 

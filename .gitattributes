@@ -9,3 +9,4 @@
 *.sh text eol=lf
 *.ps1 text eol=lf
 /third_party/** -text
+/tests/fuzz/regressions/** -text

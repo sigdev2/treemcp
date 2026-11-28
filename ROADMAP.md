@@ -172,17 +172,20 @@ See the [release evidence matrix and verification record](docs/development/relea
 
 ### 7.3 Exercise malformed input and sustained concurrency
 
-- [ ] Add opt-in bounded fuzz targets for JSON-RPC framing and decoding, query
+- [x] Add opt-in bounded fuzz targets for JSON-RPC framing and decoding, query
   compilation, path validation, globs, predicates and response construction.
   Seed them from existing fixtures, run short smoke jobs per change and longer
   scheduled runs under ASan/UBSan. Keep minimized failures as regression tests.
-- [ ] Add a separate Linux TSan preset for the scheduler, transport and batch
+- [x] Add a separate Linux TSan preset for the scheduler, transport and batch
   workers. Run it on concurrent workloads and investigate each race report.
-- [ ] Run a short CI smoke test of the soak driver, then run it for 24 hours
-  against a release candidate. Mix searches, batches, cancellation, overload
-  and workspace edits. Record the workload seed, progress, latency, peak and
-  time-series memory, plus shutdown status. Require continued progress, clean
-  shutdown and bounded memory after warm-up.
+- [x] Add a short Release CI smoke test of the soak driver. Mix searches,
+  batches, cancellation, overload and workspace edits. Record the workload
+  seed, progress, latency, peak and time-series memory, plus shutdown status.
+- [ ] Run the workload for 24 hours against a release candidate. Require
+  continued progress, clean shutdown and bounded memory after warm-up.
+
+See [malformed input and concurrency checks](docs/development/testing.md#malformed-input-and-sustained-concurrency)
+for the presets, workload, gates and evidence files.
 
 ### 7.4 Measure performance and set regression thresholds
 

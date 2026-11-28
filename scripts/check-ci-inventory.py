@@ -14,12 +14,14 @@ COMMON = {
     "workspace.changed-read", "workspace.read-only", "workspace.entry-replacement",
 }
 LINUX = {"batch.shared-work", "search.parallel-order", "workspace.traversal-limits"}
+TSAN = {"scheduler.workers", "scheduler.publication", "scheduler.stdio", "protocol.stdio",
+        "batch.correctness", "batch.shared-work", "search.parallel-order"}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("preset", choices=("windows-debug", "windows-release",
-                                           "linux-debug", "linux-release", "linux-asan"))
+                                           "linux-debug", "linux-release", "linux-asan", "linux-tsan"))
     parser.add_argument("inventory", type=Path)
     args = parser.parse_args()
     required = COMMON.copy()
@@ -27,6 +29,8 @@ def main():
         required.update(LINUX)
     if args.preset == "linux-asan":
         required.update(("protocol.session-memory", "search.request-cleanup"))
+    if args.preset == "linux-tsan":
+        required = TSAN
 
     tests = json.loads(args.inventory.read_text(encoding="utf-8"))["tests"]
     enabled = {test["name"] for test in tests

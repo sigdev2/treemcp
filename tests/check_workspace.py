@@ -56,9 +56,18 @@ def wire_session(executable, root, *options, default_root=False, prefix=(), repl
             send("notifications/initialized", {}, notify=True)
             yield send, receive, request
         finally:
-            child.stdin.close()
-            assert child.wait(timeout=5) == 0
-            assert child.stdout.read() == "" and child.stderr.read() == ""
+            try:
+                child.stdin.close()
+            except BrokenPipeError:
+                pass  # Collect the server's exit status and diagnostics below.
+            try:
+                status = child.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                child.kill()
+                raise
+            diagnostics = child.stderr.read()
+            assert status == 0 and not diagnostics, (status, diagnostics)
+            assert child.stdout.read() == ""
 
 
 @contextmanager

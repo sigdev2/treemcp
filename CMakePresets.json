@@ -46,6 +46,22 @@
       "name": "linux-asan",
       "inherits": "linux-debug",
       "cacheVariables": { "TREEMCP_ENABLE_SANITIZERS": "ON" }
+    },
+    {
+      "name": "linux-tsan",
+      "inherits": "linux-debug",
+      "cacheVariables": {
+        "TREEMCP_ENABLE_TSAN": "ON",
+        "CMAKE_C_COMPILER": "clang", "CMAKE_CXX_COMPILER": "clang++"
+      }
+    },
+    {
+      "name": "linux-fuzz",
+      "inherits": "linux-asan",
+      "cacheVariables": {
+        "TREEMCP_ENABLE_FUZZING": "ON", "BUILD_TESTING": "OFF",
+        "CMAKE_C_COMPILER": "clang", "CMAKE_CXX_COMPILER": "clang++"
+      }
     }
   ],
   "buildPresets": [
@@ -53,13 +69,22 @@
     { "name": "windows-release", "configurePreset": "windows-release" },
     { "name": "linux-debug", "configurePreset": "linux-debug" },
     { "name": "linux-release", "configurePreset": "linux-release" },
-    { "name": "linux-asan", "configurePreset": "linux-asan" }
+    { "name": "linux-asan", "configurePreset": "linux-asan" },
+    { "name": "linux-tsan", "configurePreset": "linux-tsan" },
+    { "name": "linux-fuzz", "configurePreset": "linux-fuzz", "targets": ["fuzz-targets"] }
   ],
   "testPresets": [
     { "name": "windows-debug", "configurePreset": "windows-debug", "output": { "outputOnFailure": true } },
     { "name": "windows-release", "configurePreset": "windows-release", "output": { "outputOnFailure": true } },
     { "name": "linux-debug", "configurePreset": "linux-debug", "output": { "outputOnFailure": true } },
     { "name": "linux-release", "configurePreset": "linux-release", "output": { "outputOnFailure": true } },
-    { "name": "linux-asan", "configurePreset": "linux-asan", "output": { "outputOnFailure": true } }
+    { "name": "linux-asan", "configurePreset": "linux-asan", "output": { "outputOnFailure": true } },
+    {
+      "name": "linux-tsan", "configurePreset": "linux-tsan",
+      "filter": { "include": { "name": "^(scheduler\\.|protocol\\.stdio$|batch\\.(correctness|shared-work)$|search\\.parallel-order$)" } },
+      "execution": { "noTestsAction": "error" },
+      "output": { "outputOnFailure": true },
+      "environment": { "TSAN_OPTIONS": "halt_on_error=1:$penv{TSAN_OPTIONS}" }
+    }
   ]
 }

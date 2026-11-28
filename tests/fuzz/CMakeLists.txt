@@ -1,0 +1,8 @@
+add_custom_target(fuzz-targets)
+foreach(surface rpc workspace query)
+    add_executable(fuzz-${surface} ${surface}.cpp)
+    target_link_libraries(fuzz-${surface} PRIVATE treemcp_core)
+    target_link_options(fuzz-${surface} PRIVATE -fsanitize=fuzzer)
+    treemcp_set_warnings(fuzz-${surface})
+    add_dependencies(fuzz-targets fuzz-${surface})
+endforeach()

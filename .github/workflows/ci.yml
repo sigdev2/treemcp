@@ -6,12 +6,15 @@ on:
     tags: ['v[0-9]+.[0-9]+.[0-9]+']
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: '23 2 * * 0'
 
 permissions:
   contents: read
 
 jobs:
   format:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -20,7 +23,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang-format-15
           clang-format-15 --version
-          find src -type f \( -name '*.cpp' -o -name '*.hpp' \) -print0 |
+          find src tests/fuzz -type f \( -name '*.cpp' -o -name '*.hpp' \) -print0 |
             xargs -0 clang-format-15 --dry-run --Werror
 
   build:
@@ -28,7 +31,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        preset: [windows-debug, windows-release, linux-debug, linux-release, linux-asan]
+        preset: ${{ fromJSON(github.event_name == 'schedule' && '["linux-fuzz"]' || '["windows-debug","windows-release","linux-debug","linux-release","linux-asan","linux-tsan","linux-fuzz"]') }}
     runs-on: ${{ startsWith(matrix.preset, 'windows-') && 'windows-2022' || 'ubuntu-22.04' }}
     defaults:
       run:
@@ -55,6 +58,28 @@ jobs:
           kit="$RUNNER_TEMP/Qt/6.4.1/gcc_64"
           echo "$kit/bin" >> "$GITHUB_PATH"
           echo "CMAKE_PREFIX_PATH=$kit" >> "$GITHUB_ENV"
+      - name: Install the sanitizer toolchain
+        if: matrix.preset == 'linux-tsan' || matrix.preset == 'linux-fuzz'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-15 llvm-15
+          echo "/usr/lib/llvm-15/bin" >> "$GITHUB_PATH"
+      - name: Fetch Qt Base 6.4.1 for TSan
+        if: matrix.preset == 'linux-tsan'
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: qt/qtbase
+          ref: 905755304a474c942346774d930b92e3665c1bab
+          path: build/qtbase
+      - name: Instrument Qt Core synchronization for TSan
+        if: matrix.preset == 'linux-tsan'
+        run: |
+          env -u CMAKE_PREFIX_PATH cmake -G Ninja -S build/qtbase -B build/qt-tsan -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+            -DQT_BUILD_TESTS=OFF -DQT_BUILD_EXAMPLES=OFF -DFEATURE_gui=OFF -DFEATURE_icu=OFF \
+            -DFEATURE_sanitize_thread=ON -DFEATURE_forkfd_pidfd=OFF \
+            -DQT_HOST_PATH="$CMAKE_PREFIX_PATH" -DQT_FORCE_FIND_TOOLS=ON
+          setarch "$(uname -m)" -R cmake --build build/qt-tsan --target Core
       - name: Install Windows Qt and matching MinGW
         if: runner.os == 'Windows'
         shell: pwsh
@@ -83,6 +108,7 @@ jobs:
             ctest --version
             gcc --version
             g++ --version
+            if [[ "$PRESET" == linux-fuzz || "$PRESET" == linux-tsan ]]; then clang --version; fi
             qmake -query QT_VERSION
             if [[ "$RUNNER_OS" == Windows ]]; then
               mingw32-make --version
@@ -93,14 +119,41 @@ jobs:
           } > build/ci/environment.txt
           cat build/ci/environment.txt
       - name: Configure and verify vendored dependencies
-        run: cmake --preset "$PRESET" "-DPython3_EXECUTABLE=$(python -c 'import sys; print(sys.executable)')" 2>&1 | tee build/ci/configure.log
+        run: |
+          options=("-DPython3_EXECUTABLE=$(python -c 'import sys; print(sys.executable)')")
+          if [[ "$PRESET" == linux-tsan ]]; then
+            options+=("-DQT_HOST_PATH=$CMAKE_PREFIX_PATH" "-DCMAKE_PREFIX_PATH=$PWD/build/qt-tsan")
+          fi
+          cmake --preset "$PRESET" "${options[@]}" 2>&1 | tee build/ci/configure.log
       - name: Build
         run: cmake --build --preset "$PRESET" 2>&1 | tee build/ci/build.log
       - name: Verify test inventory and run CTest
+        if: matrix.preset != 'linux-fuzz' && matrix.preset != 'linux-tsan'
         run: |
           ctest --preset "$PRESET" --show-only=json-v1 > build/ci/inventory.json
           python scripts/check-ci-inventory.py "$PRESET" build/ci/inventory.json
           ctest --preset "$PRESET" --output-junit "$PWD/build/ci/results.xml"
+      - name: Run concurrent workloads under ThreadSanitizer
+        if: matrix.preset == 'linux-tsan'
+        run: |
+          mkdir -p build/ci/tsan
+          ldd build/linux-tsan/treemcp | tee build/ci/tsan/libraries.txt
+          core=$(awk '$1 == "libQt6Core.so.6" {print $3}' build/ci/tsan/libraries.txt)
+          test "$(realpath "$core")" = "$(realpath build/qt-tsan/lib/libQt6Core.so.6)"
+          ctest --preset linux-tsan --show-only=json-v1 > build/ci/inventory.json
+          python scripts/check-ci-inventory.py linux-tsan build/ci/inventory.json
+          setarch "$(uname -m)" -R env TSAN_OPTIONS="log_path=$PWD/build/ci/tsan/report" \
+            ctest --preset linux-tsan --output-junit "$PWD/build/ci/results.xml"
+      - name: Run seeded ASan/UBSan fuzz targets
+        if: matrix.preset == 'linux-fuzz'
+        run: |
+          python -B scripts/fuzz-smoke.py build/linux-fuzz build/ci/fuzz \
+            --seconds ${{ github.event_name == 'schedule' && '900' || '15' }}
+      - name: Run concurrent soak smoke
+        if: matrix.preset == 'linux-release'
+        run: |
+          python -B scripts/soak-search.py build/linux-release/treemcp --revision "$GITHUB_SHA" \
+            --seconds 30 --warmup 5 --interval 2 --output build/ci/soak.jsonl
       - name: Check pinned MCP SDK and Git ignore fixtures
         if: endsWith(matrix.preset, '-release')
         run: |

@@ -37,7 +37,7 @@ class IoThread {
 public:
     void start(std::function<void()> run)
     {
-        thread = std::thread([this, run = std::move(run)] {
+        thread = std::thread([&, run = std::move(run)] {
 #ifdef Q_OS_WIN
             handle.store(OpenThread(THREAD_TERMINATE, FALSE, GetCurrentThreadId()));
             if (!handle.load()) {

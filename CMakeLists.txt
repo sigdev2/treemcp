@@ -74,6 +74,9 @@ treemcp_set_warnings(treemcp)
 if(BUILD_TESTING)
     add_subdirectory(tests)
 endif()
+if(TREEMCP_ENABLE_FUZZING)
+    add_subdirectory(tests/fuzz)
+endif()
 
 include(cmake/Deployment.cmake)
 install(FILES README.md ROADMAP.md LICENSE StyleGuide.CPP.md .clang-format
