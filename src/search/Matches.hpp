@@ -44,7 +44,7 @@ QString visitMatches(
     TSNode root,
     QByteArrayView source,
     const CompiledQuery& compiled,
-    const std::function<bool(const TSQueryMatch&)>& visit,
+    const std::function<bool(const TSQueryMatch&, bool cursorIncomplete)>& visit,
     bool& incomplete,
     const SearchStop& stop);
 

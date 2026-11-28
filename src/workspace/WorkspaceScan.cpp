@@ -1,3 +1,4 @@
+#include "SearchProfile.hpp"
 #include "Workspace.hpp"
 #include "WorkspaceFilter.hpp"
 
@@ -94,7 +95,9 @@ private:
     {
         const QString directoryPath = prefix.isEmpty() ? QStringLiteral(".") : prefix.join('/');
         const auto baseOffset = prefix.isEmpty() ? 0 : directoryPath.toUtf8().size() + 1;
+        SearchProfile::Timer ignoreRead(SearchProfile::Phase::IgnoreRead);
         const QString error = rules.extend(*directory, baseOffset, options.stop);
+        ignoreRead.finish();
         if (!error.isEmpty()) {
             report(directoryPath, error, ScanFailure::Scope);
             return;
@@ -109,7 +112,9 @@ private:
             return;
         }
         QSet<QString> found;
+        SearchProfile::Timer list(SearchProfile::Phase::List);
         const bool listed = directory->list([&](const QString& name, NodeKind kind) {
+            const SearchProfile::Timer visitor(SearchProfile::Phase::ListVisitor);
             if (options.stop && options.stop()) {
                 stopped = true;
                 return false;
@@ -135,6 +140,7 @@ private:
             }
             return !stopped && (selection.all || static_cast<size_t>(found.size()) < selection.children.size());
         });
+        list.finish();
         if (!listed) {
             report(directoryPath, QStringLiteral("Cannot enumerate workspace directory"), ScanFailure::Scope);
         } else if (!stopped && !selection.all) {
@@ -171,30 +177,52 @@ private:
             return;
         }
         const auto excluded = [&](bool dir) {
+            const SearchProfile::Timer filter(SearchProfile::Phase::Filter);
             return matches(exclude, parts, dir) || rules.excludes(pathBytes, dir, options.stop);
         };
-        const bool excludeFile = excluded(false);
-        const bool excludeDirectory = ignoreDirectory || excluded(true);
+        std::optional<bool> fileExcluded;
+        std::optional<bool> directoryExcluded;
+        const auto excludeFile = [&] {
+            if (!fileExcluded) {
+                fileExcluded = excluded(false);
+            }
+            return *fileExcluded;
+        };
+        const auto excludeDirectory = [&] {
+            if (!directoryExcluded) {
+                directoryExcluded = ignoreDirectory || excluded(true);
+            }
+            return *directoryExcluded;
+        };
+        const auto eligibleFile = [&] {
+            const SearchProfile::Timer filter(SearchProfile::Phase::Filter);
+            return (scope.extensions.isEmpty() ||
+                    std::any_of(
+                        scope.extensions.begin(),
+                        scope.extensions.end(),
+                        [&](const QString& suffix) { return name.endsWith(suffix); })) &&
+                (include.isEmpty() || matches(include, parts, false));
+        };
+        bool skip;
+        if (kind == NodeKind::Directory) {
+            skip = excludeDirectory();
+        } else if (kind == NodeKind::File && selection.all) {
+            skip = !eligibleFile() || excludeFile();
+        } else {
+            skip = excludeDirectory() && excludeFile();
+        }
         if (options.stop && options.stop()) {
             stopped = true;
             return;
         }
-        if (excludeDirectory && (kind == NodeKind::Directory || excludeFile)) {
+        if (skip) {
             return;
         }
-        const auto eligibleFile = [&] {
-            return !excludeFile && (include.isEmpty() || matches(include, parts, false)) &&
-                (scope.extensions.isEmpty() ||
-                 std::any_of(scope.extensions.begin(), scope.extensions.end(), [&](const QString& suffix) {
-                     return name.endsWith(suffix);
-                 }));
-        };
-        if (kind == NodeKind::File && selection.all && !eligibleFile()) {
-            return;
-        }
+        SearchProfile::Timer open(SearchProfile::Phase::Open);
         auto node = parent->child(name);
+        open.finish();
         if (node.kind() == NodeKind::Directory) {
-            if (!excludeDirectory && !(scope.singleFile && selection.all)) {
+            if (!(scope.singleFile && selection.all) && !excludeDirectory()) {
                 walk(std::make_shared<WorkspaceNode>(std::move(node)), parts, selection, rules);
             }
             return;
@@ -209,7 +237,7 @@ private:
                 kind == NodeKind::File ? ScanFailure::File : ScanFailure::Scope);
             return;
         }
-        if (kind != NodeKind::File && !eligibleFile()) {
+        if (kind != NodeKind::File && (!eligibleFile() || excludeFile())) {
             return;
         }
         if (files == options.maxFiles) {
@@ -218,6 +246,7 @@ private:
             return;
         }
         ++files;
+        SearchProfile::count(SearchProfile::Phase::Selected);
         if (options.visitedFiles) {
             *options.visitedFiles = files;
         }
@@ -234,11 +263,13 @@ QString scanWorkspace(
     const ScanDiagnostic& report,
     const ScanOptions& options)
 {
+    const SearchProfile::Timer scan(SearchProfile::Phase::Scan);
     return Scan(workspace, scope, visit, report, options).run();
 }
 
 SourceRead SelectedFile::read(const std::function<bool()>& stop) const
 {
+    const SearchProfile::Timer read(SearchProfile::Phase::Read);
     return readText(*parent, name, node, MAX_FILE_BYTES, stop);
 }
 

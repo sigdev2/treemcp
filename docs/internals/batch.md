@@ -10,8 +10,9 @@ A coordinator compiles each query once, groups valid items by grammar and scans
 the union of their file extensions. The workspace walker deduplicates overlapping
 selectors. The coordinator hands the opened file and its parent directory handle
 to a worker in the shared pool. The worker reads the file, with one retry for a
-detected change. At most `--workers` file jobs are outstanding. The scanner can
-hold one further opened file while waiting for capacity.
+detected change. At most `--workers` file jobs are outstanding across the batch
+and scoped structural search coordinators. Each scanner can hold one further
+opened file while waiting for capacity.
 
 A worker owns its file's source, parser, trees and cursors. It builds one tree
 per applicable grammar and runs that grammar's queries against it. Compiled
@@ -19,7 +20,10 @@ queries and predicate tables are read-only throughout execution. Workers copy
 only the bounded capture data needed for results. No source, tree, compiled
 query or result survives a completed request.
 
-Workers insert matches into ordered per-item sets under one lock. They evict
+Each worker buffers up to 16 matches and 64 KiB of copied match data for one
+query at a time. It merges the buffer under one lock when either limit would
+be exceeded or when the query finishes or stops. An entry above the byte
+limit is merged directly. Workers insert into ordered per-item sets and evict
 the last match of an overflowing item, or the last match of the lowest-priority
 nonempty item when the global count overflows. Across all items the sets retain
 at most `maxTotalMatches` entries after each insertion. Sorting uses UTF-8 path

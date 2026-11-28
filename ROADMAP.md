@@ -186,12 +186,14 @@ See the [release evidence matrix and verification record](docs/development/relea
 
 ### 7.4 Measure performance and set regression thresholds
 
-- [ ] Pin the corpus generator or corpus revision, checksums, queries and
+- See [search performance](docs/development/search-performance.md) for the
+  Release comparison driver, profiling build and optional gates.
+- [x] Pin the corpus generator or corpus revision, checksums, queries and
   expected matches. Compare sequential single searches, concurrent singles
   and one batch over the same scopes and limits in a persistent stdio session.
   Verify captures, ranges and completion flags against the oracle before
   accepting any timing sample.
-- [ ] Run Release builds at 1/2/4/8 workers. Record elapsed time, unique files
+- [x] Run Release builds at 1/2/4/8 workers. Record elapsed time, unique files
   and actual reads, required file/grammar pairs and actual tree builds, query
   compiles and executions, response bytes and peak process memory. Under a
   competing batch, measure small-search latency and time from cancellation to

@@ -1,6 +1,7 @@
 #include "StdioServer.hpp"
 
 #include "Framer.hpp"
+#include "SearchProfile.hpp"
 #include "Session.hpp"
 
 #include <QCoreApplication>
@@ -165,7 +166,14 @@ public:
 
     bool publish(const QJsonObject& reply)
     {
+#ifdef TREEMCP_SEARCH_PROFILE
+        const auto started = SearchProfile::Clock::now();
+#endif
         auto line = QJsonDocument(reply).toJson(QJsonDocument::Compact) + '\n';
+#ifdef TREEMCP_SEARCH_PROFILE
+        const auto duration = SearchProfile::Clock::now() - started;
+        SearchProfile::wireSerialized(reply.value("id"), duration, line.size());
+#endif
         std::lock_guard lock(mutex);
         // Includes the record currently being written.
         if (failed || pendingBytes + line.size() > 16 * 1024 * 1024) {

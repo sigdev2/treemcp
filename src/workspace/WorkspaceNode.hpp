@@ -45,17 +45,23 @@ public:
     {
         return nodeKind;
     }
+    qint64 openedSize() const
+    {
+        return initialBytes;
+    }
     std::optional<FileStamp> stamp() const;
     qsizetype read(char* buffer, qsizetype size) const;
 
 private:
-    explicit WorkspaceNode(NodeKind kind, qintptr handle = -1) :
+    explicit WorkspaceNode(NodeKind kind, qintptr handle = -1, qint64 bytes = -1) :
             nodeKind(kind),
-            native(handle)
+            native(handle),
+            initialBytes(bytes)
     {
     }
     NodeKind nodeKind;
     qintptr native;
+    qint64 initialBytes;
 };
 
 bool validComponent(const QString& component);

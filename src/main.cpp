@@ -79,7 +79,8 @@ int runCall(
             const auto timeout = std::chrono::milliseconds(validated.value("deadlineMs").toInt());
             const treemcp::SearchStop stop { cancelled, received + timeout };
             treemcp::Scheduler scheduler(workers);
-            auto result = treemcp::Tools::execute(id, name, validated, workspace, stop, scheduler);
+            treemcp::FileJobs files;
+            auto result = treemcp::Tools::execute(id, name, validated, workspace, stop, scheduler, &files);
             return stop.requested() ? treemcp::Tools::deadlineReply(id, result) : result;
         });
     if (!reply) {

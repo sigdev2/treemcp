@@ -10,10 +10,10 @@ COMMON = {
     "protocol.decoder", "protocol.stdio", "search.stdio", "search.cli",
     "search.queries", "scheduler.workers", "scheduler.stdio",
     "workspace.ignore-pattern", "workspace.ignore", "workspace.stdio",
-    "batch.correctness", "batch.corpus", "scheduler.publication",
+    "batch.correctness", "batch.corpus", "scheduler.publication", "benchmark.mixed",
     "workspace.changed-read", "workspace.read-only", "workspace.entry-replacement",
 }
-LINUX = {"batch.shared-work", "workspace.traversal-limits"}
+LINUX = {"batch.shared-work", "search.parallel-order", "workspace.traversal-limits"}
 
 
 def main():

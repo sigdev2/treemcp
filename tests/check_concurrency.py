@@ -8,7 +8,7 @@ import tempfile
 import time
 
 from check_batch import params, query
-from check_workspace import wire_session, write
+from check_workspace import session, wire_session, write
 
 
 def search(**args):
@@ -156,6 +156,58 @@ def check_session_limit(executable, root):
         assert reply["id"] == expected_id and reply["error"]["code"] == code, reply
 
 
+def check_scoped_prefix(executable, root):
+    write(root, "prefix/one.py", "alpha\n")
+    write(root, "prefix/two.py", "alpha\nbeta\n")
+    write(root, "prefix/long.py", ('x = "' + 'a' * 1400 + '"\n') * 240)
+    write(root, "prefix/large.py", b"x" * (8 * 1024 * 1024 + 1))
+    paths = ["prefix/one.py", "prefix/two.py", "prefix/large.py"]
+    missing = paths + [f"prefix/missing{i:02}.py" for i in reversed(range(20))]
+    variants = [dict(paths=[paths[0]], maxMatches=1), dict(paths=[paths[1]], maxMatches=1),
+                dict(paths=["prefix/long.py"], query="(string) @s", maxMatches=1),
+                dict(paths=["prefix/long.py"], query="(string) @s", maxMatches=240),
+                dict(paths=paths, maxMatches=2), dict(paths=missing)]
+    with session(executable, root, "--workers", "1") as call:
+        oracle = [call(**args) for args in variants]
+    exact, overflow, clipped, byte_limited, _, diagnostics = oracle
+    assert len(exact["matches"]) == len(overflow["matches"]) == 1
+    assert not exact["truncated"] and overflow["truncated"]
+    assert clipped["truncated"] and clipped["matches"][0]["captures"][0]["textTruncated"]
+    assert byte_limited["truncated"] and 1 < len(byte_limited["matches"]) < 240
+    assert diagnostics["incomplete"] and len(diagnostics["diagnostics"]) == 16
+    assert [d["path"] for d in diagnostics["diagnostics"]] == paths[2:] + list(reversed(missing[-20:]))[:15]
+    for workers in (2, 4, 8):
+        with session(executable, root, "--workers", str(workers)) as call:
+            assert [call(**args) for args in variants] == oracle
+
+
+def check_scoped_owners(executable, root):
+    write(root, "short/one.py", "survivor\n")
+    write(root, "medium.py", b"a=b\n" * 12000)
+    with wire_session(executable, root, "--workers", "2") as (send, receive, request):
+        batch = send("tools/call", params([query("batch")], paths=["medium.py"]))
+        first = send("tools/call", search(paths=["big.py"]))
+        second = send("tools/call", search(paths=["short"]))
+        cancel(send, first)
+        received = {}
+        for _ in range(2):
+            reply, _ = receive()
+            received[reply["id"]] = reply["result"]["structuredContent"]
+        assert received.keys() == {batch, second}
+        assert received[batch]["items"][0]["matches"]
+        assert received[second]["matches"][0]["captures"][0]["text"] == "survivor"
+
+        result = request("tools/call", search(paths=["big.py"], deadlineMs=5))
+        assert result["isError"] and "deadline" in result["content"][0]["text"]
+        write(root, "short/one.py", "updated\n")
+        data = request("tools/call", search(paths=["short"]))["structuredContent"]
+        assert data["matches"][0]["captures"][0]["text"] == "updated"
+        send("tools/call", params([query("batch")], paths=["big.py"]))
+        send("tools/call", search(paths=["big.py"]))
+        send("tools/call", search(paths=["big.py"]))
+        assert request("ping", {}) == {}  # EOF while both coordinators and the sequential fallback are active.
+
+
 if __name__ == "__main__":
     with tempfile.TemporaryDirectory() as temp:
         workspace = Path(temp) / "workspace"
@@ -167,3 +219,5 @@ if __name__ == "__main__":
         check_races(program, workspace)
         check_output_backpressure(program, workspace)
         check_session_limit(program, workspace)
+        check_scoped_prefix(program, workspace)
+        check_scoped_owners(program, workspace)

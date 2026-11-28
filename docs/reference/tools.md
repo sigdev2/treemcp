@@ -222,3 +222,5 @@ searches. Counts apply to this request only.
 Use `--workers 1` through `--workers 8` to set the shared search worker count.
 The default uses the available CPU count capped at eight. The server also accepts
 the existing spelling `--batch-workers`. One batch can run at a time per session.
+With at least two workers, the session can also process files in parallel for
+one `structural_search` using `paths`. Other scoped searches run sequentially.

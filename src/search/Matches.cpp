@@ -1,4 +1,5 @@
 #include "Matches.hpp"
+#include "SearchProfile.hpp"
 
 #include <QJsonArray>
 #include <QStringDecoder>
@@ -25,6 +26,7 @@ QJsonObject nodeRange(TSNode node)
 
 Tree parseTree(const QByteArray& source, const TSLanguage* language, const SearchStop& stop)
 {
+    const SearchProfile::Timer parse(SearchProfile::Phase::Parse);
     const Parser parser { ts_parser_new(), ts_parser_delete };
     Tree tree { nullptr, ts_tree_delete };
     if (!parser || !ts_parser_set_language(parser.get(), language)) {
@@ -120,10 +122,11 @@ QString visitMatches(
     TSNode root,
     QByteArrayView source,
     const CompiledQuery& compiled,
-    const std::function<bool(const TSQueryMatch&)>& visit,
+    const std::function<bool(const TSQueryMatch&, bool cursorIncomplete)>& visit,
     bool& incomplete,
     const SearchStop& stop)
 {
+    const SearchProfile::Timer query(SearchProfile::Phase::Query);
     // The pinned runtime records up to three captures per visited node, but the C API
     // exposes only a 16-bit capture count. Guard repeated captures before it can wrap.
     constexpr uint32_t MAX_REPEAT_TREE_NODES = std::numeric_limits<uint16_t>::max() / 3;
@@ -153,7 +156,7 @@ QString visitMatches(
         {
             continue;
         }
-        if (!visit(match)) {
+        if (!visit(match, ts_query_cursor_did_exceed_match_limit(cursor.get()))) {
             break;
         }
     }

@@ -1,4 +1,5 @@
 #include "Session.hpp"
+#include "SearchProfile.hpp"
 
 #include "Tools.hpp"
 
@@ -46,10 +47,14 @@ void Session::shutdown()
     }
     for (auto it = active.cbegin(); it != active.cend(); ++it) {
         scheduler.remove(it.key());
+        if (it.value()->coordinator) {
+            scheduler.cancelFiles(it.value()->files);
+        }
     }
-    scheduler.cancelFiles();
-    if (coordinator.joinable()) {
-        coordinator.join();
+    for (auto* coordinator : { &batchCoordinator, &structuralCoordinator }) {
+        if (coordinator->joinable()) {
+            coordinator->join();
+        }
     }
     scheduler.shutdown();
     for (const auto& id : active.keys()) {
@@ -73,12 +78,21 @@ void Session::cancel(const QJsonValue& id)
     if (!work) {
         return;
     }
+#ifdef TREEMCP_SEARCH_PROFILE
+    const auto cancelledAt = Clock::now();
+#endif
     work->cancelled.store(true);
-    if (work->batch) {
-        scheduler.cancelFiles();
+    if (work->coordinator) {
+        scheduler.cancelFiles(work->files);
     } else if (scheduler.remove(id)) {
         forget(id);
+#ifdef TREEMCP_SEARCH_PROFILE
+        SearchProfile::event(id, "released", Clock::now());
+#endif
     }
+#ifdef TREEMCP_SEARCH_PROFILE
+    SearchProfile::event(id, "cancel", cancelledAt);
+#endif
 }
 
 void Session::complete(const QJsonValue& id)
@@ -92,8 +106,9 @@ void Session::complete(const QJsonValue& id)
         std::lock_guard lock(completionMutex);
         reply = std::move(work->reply);
     }
-    if (work->batch && coordinator.joinable()) {
-        coordinator.join();
+    if (work->coordinator && work->coordinator->joinable()) {
+        work->coordinator->join();
+        scheduler.reserveWorkerForSingles(false);
     }
     forget(id);
     if (!work->cancelled.load() && reply) {
@@ -114,8 +129,8 @@ void Session::expire()
             next = std::min(next, work->deadline);
             continue;
         }
-        if (work->batch) {
-            scheduler.cancelFiles();
+        if (work->coordinator) {
+            scheduler.cancelFiles(work->files);
         } else if (scheduler.remove(id)) {
             forget(id);
             publish(Tools::deadlineReply(id));
@@ -142,16 +157,15 @@ std::optional<QJsonObject> Session::schedule(
     const int cost = 1 + static_cast<int>(frameBytes / 65536) + (args.contains("paths") ? 3 : 0) +
         static_cast<int>(args.value("queries").toArray().size());
     if (closed || active.size() >= maxRequests || cost + admittedCost > 4 * maxRequests ||
-        (batch && coordinator.joinable()))
+        (batch && batchCoordinator.joinable()))
     {
         return JsonRpc::error(id, -32001, QStringLiteral("Search scheduler at capacity"));
     }
     auto work = std::make_shared<Work>();
     work->deadline = deadline;
-    work->batch = batch;
     work->cost = cost;
     if (!publish) {
-        return Tools::execute(id, name, args, workspace, { work->cancelled, deadline }, scheduler);
+        return Tools::execute(id, name, args, workspace, { work->cancelled, deadline }, scheduler, &work->files);
     }
     active.insert(id, work);
     admittedCost += cost;
@@ -162,7 +176,14 @@ std::optional<QJsonObject> Session::schedule(
         deadlines.start(remaining);
     }
     auto run = [this, id, name, args, work] {
-        auto reply = Tools::execute(id, name, args, workspace, { work->cancelled, work->deadline }, scheduler);
+        auto reply = Tools::execute(
+            id,
+            name,
+            args,
+            workspace,
+            { work->cancelled, work->deadline },
+            scheduler,
+            work->coordinator ? &work->files : nullptr);
         {
             std::lock_guard lock(completionMutex);
             work->reply = std::move(reply);
@@ -173,15 +194,33 @@ std::optional<QJsonObject> Session::schedule(
             Qt::QueuedConnection);
     };
     if (batch) {
-        try {
-            coordinator = std::thread(std::move(run));
-        } catch (const std::system_error&) {
-            forget(id);
-            return JsonRpc::error(id, -32001, QStringLiteral("Batch coordinator unavailable"));
-        }
-    } else {
-        scheduler.submit(id, std::move(run));
+        work->coordinator = &batchCoordinator;
+    } else if (
+        name == "structural_search" && args.contains("paths") && scheduler.workerCount() > 1 &&
+        !structuralCoordinator.joinable())
+    {
+        work->coordinator = &structuralCoordinator;
     }
+    if (work->coordinator) {
+        const bool competing = batch ? structuralCoordinator.joinable() : batchCoordinator.joinable();
+        if (competing) {
+            scheduler.reserveWorkerForSingles(true);
+        }
+        try {
+            *work->coordinator = std::thread(run);
+            return std::nullopt;
+        } catch (const std::system_error&) {
+            if (competing) {
+                scheduler.reserveWorkerForSingles(false);
+            }
+            if (batch) {
+                forget(id);
+                return JsonRpc::error(id, -32001, QStringLiteral("Batch coordinator unavailable"));
+            }
+            work->coordinator = nullptr;
+        }
+    }
+    scheduler.submit(id, std::move(run));
     return std::nullopt;
 }
 

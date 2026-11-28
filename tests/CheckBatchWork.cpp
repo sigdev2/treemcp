@@ -106,7 +106,8 @@ int main()
                    1,
                    { { "name", "batch_search" }, { "arguments", args } },
                    [&](const QString& name, const QJsonObject& admitted) {
-                       return treemcp::Tools::execute(1, name, admitted, workspace, { cancelled, deadline }, scheduler);
+                       treemcp::FileJobs files;
+                       return treemcp::Tools::execute(1, name, admitted, workspace, { cancelled, deadline }, scheduler, &files);
                    })
             ->value("result")
             .toObject();

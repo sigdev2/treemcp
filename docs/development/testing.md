@@ -39,6 +39,9 @@ Use the [pinned release](https://github.com/rogerorr/NtTrace/releases/tag/v1.1).
 
 ## Local checks
 
+For timing, resource measurements and optional regression gates, see
+[search performance](search-performance.md).
+
 Every build helper runs CTest after compilation. Current checks are:
 
 - `bootstrap.runtime`: all nine grammar ABIs load; fixtures parse; queries return the
@@ -56,11 +59,15 @@ Every build helper runs CTest after compilation. Current checks are:
   checks error recovery and closes stdin with replies still to read.
 - `scheduler.workers` parks workers to check FIFO order and alternation when both
   queues have work. It checks that one batch can fill the pool and that further
-  file submission expires while all slots are occupied.
+  file submission expires while all slots are occupied. It also checks that
+  cancelling a file-job owner wakes its blocked submitter and leaves the other
+  owner's jobs available, and that a worker reserved during competing scans
+  handles single requests.
 - `scheduler.stdio` fills the request and cost budgets independently, checks
   overload recovery, expires queued and running calls, races cancellation with
-  completion, and closes stdin with single and batch work pending. Its shutdown
-  grace interval is five seconds.
+  completion, and closes stdin with both coordinators and a sequential search
+  active. It compares scoped search limits and diagnostic order at 1, 2, 4 and
+  8 workers. Its shutdown grace interval is five seconds.
 - Configure-time SHA-256 verification of the complete vendored source subset.
 - The [OpenCode 2.1.4 scenarios](../integrations/opencode-v2.md#reproduce-the-checks)
   run separately from CTest and exercise the installed skill through a local model.
@@ -75,6 +82,13 @@ Every build helper runs CTest after compilation. Current checks are:
   It also exercises each new grammar, both interpretations of a shared C/C++ header
   and the exact Qt and Python arguments shipped in the OpenCode skill.
   The checks preserve capture order and verify UTF-8 ranges against the source.
+- `search.parallel-order` gates reads on Linux so the second file finishes parsing
+  and matching while the first is blocked. It compares the reply with one worker,
+  injects a read error and checks descriptor cleanup after completion and cancellation.
+  An ordered directory stream verifies early exit while the walker is filtering unrelated entries.
+- `benchmark.mixed` exercises a late cancellation on either side of the other replies and
+  checks the retry limit. In profiled test builds, `benchmark.serialization` checks the
+  search encodings and the byte count of the final stdio reply.
 - `workspace.stdio` runs when CMake finds Python 3. It uses the standard library
   and a temporary workspace to exercise filters, overlapping scopes, path and file
   limits, in-session edits, replacements, deletions and a directory swap during

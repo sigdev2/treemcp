@@ -2,8 +2,11 @@
 
 The main thread validates tool arguments and admits search requests. Protocol
 messages, discovery and `languages` run there directly. The other four tools
-share a fixed pool of 1 to 8 workers. An independent coordinator walks the
-workspace for the single admitted batch and waits for its file jobs. See
+share a fixed pool of 1 to 8 workers. The session has one coordinator for its
+active batch and, with two or more workers, one for an active
+`structural_search` with `paths`. The coordinators walk the workspace and wait
+for their file jobs outside the pool. A scoped search uses the sequential path
+when its coordinator is occupied or the pool has one worker. See
 [batch execution](batch.md).
 
 With W workers, the session admits at most `W + max(32, 4 * W)` outstanding
@@ -14,10 +17,26 @@ Exhausting either budget or submitting a second active batch returns JSON-RPC
 error `-32001`. Cancellation releases a queued single's admission immediately.
 Running requests keep their admission until cleanup.
 
-The scheduler alternates FIFO queues for single requests and batch file jobs
+The scheduler alternates FIFO queues for single requests and file jobs
 whenever both have work. Either queue can use the full pool when the other is
-empty. Each worker picks again after finishing a single request or one batch
-file. The coordinator can submit at most W outstanding file jobs.
+empty. Each worker picks again after finishing a single request or a file.
+Across both coordinators, at most W file jobs are queued or running, and
+coordinators waiting for capacity are admitted in arrival order.
+While both coordinators are active, the pool reserves one worker for single
+requests as the current file jobs finish.
+
+Scoped structural search merges file results in discovery order and keeps
+Tree-sitter cursor order within a file. Scan diagnostics follow the same order.
+Each pending file can retain up to 240 KiB of serialized match entries and the
+number of pending files is bounded by W. Searches with a match limit of four
+or fewer use a two-file window. The coordinator applies the request-wide match
+and byte limits to the combined prefix and cancels its remaining file jobs once
+it finds an additional match that does not fit. The walker checks the ready
+prefix while filtering entries and before blocking for another file slot.
+On POSIX, the coordinator can process a file under 1 KiB directly when it has no
+earlier results to merge. It borrows one idle worker slot for that file and
+yields to queued work. The size observed at open only informs scheduling.
+Reading and checking the file still use the normal handle-based path.
 
 Each search request validates its arguments and resource budget, determines the
 current file set, securely opens and reads eligible files, builds fresh trees,
@@ -47,8 +66,8 @@ deadline and cancellation check. A dedicated writer drains replies in order.
 The main thread serializes publication and cancellation for each JSON-RPC ID.
 An explicit cancellation received before publication removes queued work, signals
 running work and suppresses its reply. A notification arriving after publication
-has no effect. Batch children release their handles, source buffers and trees
-before the coordinator returns.
+has no effect. Each coordinator removes and joins its own file jobs. Their
+handles, source buffers and trees are released before the coordinator returns.
 
 At EOF the session closes admission, cancels unfinished requests, joins workers
 and publishes replies already completed at the shutdown boundary. The stdio

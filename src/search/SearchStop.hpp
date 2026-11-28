@@ -9,10 +9,12 @@ namespace treemcp {
 struct SearchStop {
     const std::atomic_bool& cancelled;
     std::chrono::steady_clock::time_point deadline;
+    const std::atomic_bool* abandoned = nullptr;
 
     bool requested() const
     {
-        return cancelled.load(std::memory_order_relaxed) || std::chrono::steady_clock::now() >= deadline;
+        return cancelled.load(std::memory_order_relaxed) || (abandoned && abandoned->load(std::memory_order_relaxed)) ||
+            std::chrono::steady_clock::now() >= deadline;
     }
 };
 

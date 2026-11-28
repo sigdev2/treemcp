@@ -16,13 +16,15 @@ if not __debug__:
 
 
 @contextmanager
-def wire_session(executable, root, *options, default_root=False, prefix=(), reply_sizes=None):
+def wire_session(executable, root, *options, default_root=False, prefix=(), reply_sizes=None, process=None, env=None):
     command = [executable, *options] if default_root else [executable, "--workspace-root", root, *options]
     with subprocess.Popen(
-        [*prefix, *command], cwd=root if default_root else root.parent,
+        [*prefix, *command], cwd=root if default_root else root.parent, env=env,
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         text=True, encoding="utf-8",
     ) as child:
+        if process is not None:
+            process(child)
         request_id = 0
 
         def send(method, params, notify=False):

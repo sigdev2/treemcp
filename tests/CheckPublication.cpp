@@ -69,15 +69,16 @@ int main(int argc, char** argv)
         R"({"name":"structural_search","arguments":{"paths":["."],"language":"python","query":"(identifier) @name"}})";
     const QByteArray batch =
         R"({"name":"batch_search","arguments":{"paths":["."],"queries":[{"id":"names","language":"python","query":"(identifier) @name"}]}})";
+    const auto call = [&](int id, const QByteArray& params) {
+        return session.handle(R"({"jsonrpc":"2.0","method":"tools/call","id":)" + QByteArray::number(id) +
+                              R"(,"params":)" + params + '}');
+    };
     int id = 1;
     for (const auto& params : { single, batch }) {
         for (const bool cancel : { true, false }) {
             ++id;
             gate.id = cancel ? id : 0;
-            const auto immediate = session.handle(
-                R"({"jsonrpc":"2.0","method":"tools/call","id":)" + QByteArray::number(id) + R"(,"params":)" + params +
-                '}');
-            if (immediate) {
+            if (call(id, params)) {
                 return 1;
             }
             loop.exec();
@@ -98,6 +99,26 @@ int main(int argc, char** argv)
             }
         }
     }
-    std::puts("Cancelled completed single and batch replies before publication; subsequent results delivered");
+    const int cancelled = ++id;
+    gate.id = cancelled;
+    // Until the first completion event runs, its coordinator slot remains reserved.
+    if (call(cancelled, single) || call(++id, single) || call(++id, batch)) {
+        return 1;
+    }
+    while (gate.completions < id - 1) {
+        loop.exec();
+    }
+    QSet<int> delivered;
+    for (const auto& reply : replies) {
+        const auto data = reply.value("result").toObject().value("structuredContent").toObject();
+        if (data.isEmpty() || data.value("incomplete") != false) {
+            return 1;
+        }
+        delivered.insert(reply.value("id").toInt());
+    }
+    if (delivered != QSet<int> { cancelled + 1, cancelled + 2 } || replies.size() != 2) {
+        return 1;
+    }
+    std::puts("Cancelled results before publication and delivered replies from the two other searches");
     return 0;
 }

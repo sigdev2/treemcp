@@ -66,6 +66,13 @@ if(Python3_Interpreter_FOUND)
     endforeach()
     add_test(NAME scheduler.stdio COMMAND "${Python3_EXECUTABLE}"
         -B "${CMAKE_CURRENT_SOURCE_DIR}/check_concurrency.py" "$<TARGET_FILE:treemcp>")
+    add_test(NAME benchmark.mixed COMMAND "${Python3_EXECUTABLE}" -B "${CMAKE_CURRENT_SOURCE_DIR}/check_benchmark.py")
+    list(APPEND protocol_tests benchmark.mixed)
+    if(TREEMCP_SEARCH_PROFILE)
+        add_test(NAME benchmark.serialization COMMAND "${Python3_EXECUTABLE}"
+            -B "${CMAKE_CURRENT_SOURCE_DIR}/check_benchmark.py" "$<TARGET_FILE:treemcp>")
+        list(APPEND protocol_tests benchmark.serialization)
+    endif()
     list(APPEND protocol_tests scheduler.stdio search.cli search.queries workspace.stdio workspace.ignore batch.correctness batch.corpus)
 endif()
 
@@ -78,6 +85,16 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         "LINKER:--wrap=ts_parser_parse_with_options" "LINKER:--wrap=ts_tree_delete")
     treemcp_set_warnings(check-batch-work)
     add_test(NAME batch.shared-work COMMAND check-batch-work)
+
+    add_executable(check-parallel-search CheckParallelSearch.cpp)
+    qt_add_resources(check-parallel-search "parallel_catalog" PREFIX "/" BASE "${PROJECT_SOURCE_DIR}"
+        FILES ${catalog_files})
+    target_link_libraries(check-parallel-search PRIVATE treemcp_core)
+    target_link_options(check-parallel-search PRIVATE
+        "LINKER:--wrap=read" "LINKER:--wrap=readdir" "LINKER:--wrap=ts_tree_delete")
+    treemcp_set_warnings(check-parallel-search)
+    add_test(NAME search.parallel-order COMMAND check-parallel-search)
+    set_tests_properties(search.parallel-order PROPERTIES TIMEOUT 30)
 
     add_executable(check-changed-read CheckChangedRead.cpp)
     target_link_libraries(check-changed-read PRIVATE treemcp_core)

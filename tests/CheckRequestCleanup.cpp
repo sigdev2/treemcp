@@ -80,13 +80,15 @@ int main()
             size_t withReply = 0;
             {
                 auto reply = treemcp::Tools::call(1, params, [&](const QString& tool, const QJsonObject& admitted) {
+                    treemcp::FileJobs files;
                     return treemcp::Tools::execute(
                         1,
                         tool,
                         admitted,
                         workspace,
                         { cancelled, Clock::now() + std::chrono::seconds(10) },
-                        scheduler);
+                        scheduler,
+                        &files);
                 });
                 if (!reply) {
                     return 1;

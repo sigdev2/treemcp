@@ -61,7 +61,7 @@ WorkspaceNode WorkspaceNode::child(const QString& component) const
         close(fd);
         return WorkspaceNode(NodeKind::Error);
     }
-    return WorkspaceNode(S_ISDIR(opened.st_mode) ? NodeKind::Directory : NodeKind::File, fd);
+    return WorkspaceNode(S_ISDIR(opened.st_mode) ? NodeKind::Directory : NodeKind::File, fd, opened.st_size);
 }
 
 bool WorkspaceNode::list(const EntryVisitor& visit) const

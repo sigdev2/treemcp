@@ -8,6 +8,7 @@
 namespace treemcp {
 
 class Scheduler;
+class FileJobs;
 
 QString validateBatch(const QJsonObject& arguments);
 SingleFile::Result batchSearch(
@@ -15,7 +16,8 @@ SingleFile::Result batchSearch(
     const QJsonObject& arguments,
     const Workspace& workspace,
     const SearchStop& stop,
-    Scheduler& scheduler);
+    Scheduler& scheduler,
+    FileJobs& files);
 
 } // namespace treemcp
 #endif // TREEMCP_BATCHSEARCH_HPP

@@ -18,6 +18,7 @@ include(CTest)
 include(GNUInstallDirs)
 include(cmake/Warnings.cmake)
 include(cmake/Sanitizers.cmake)
+option(TREEMCP_SEARCH_PROFILE "Collect search phase timings in a test build" OFF)
 
 # Keep checkout paths out of diagnostics and debug metadata in project-built objects.
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -49,6 +50,10 @@ add_library(treemcp_core STATIC
     src/workspace/WorkspaceScan.cpp
     src/workspace/WorkspaceNode.cpp
 )
+if(TREEMCP_SEARCH_PROFILE)
+    target_sources(treemcp_core PRIVATE src/search/SearchProfile.cpp)
+    target_compile_definitions(treemcp_core PUBLIC TREEMCP_SEARCH_PROFILE)
+endif()
 if(WIN32)
     target_sources(treemcp_core PRIVATE src/workspace/WorkspaceWindows.cpp)
     target_link_libraries(treemcp_core PRIVATE ntdll)

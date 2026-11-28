@@ -228,19 +228,25 @@ def check_wire(executable, root):
         send("tools/call", heavy)  # Closing stdin cancels and joins this batch.
 
 
+CORPUS_CASES = ((1000, 16), (10000, 2))
+
+
+def corpus_files(count, query_count):
+    for i in range(count):
+        # Sparse, distinct hits allow exact comparison with unsorted single searches under their limits.
+        yield f"{count}/{i // 100}/{i}.py", f"hit{i}\n".encode() if i < query_count else b"pass\n"
+
+
+def corpus_queries(query_count):
+    return [query(str(i), f'((identifier) @n (#eq? @n "hit{i}"))') for i in range(query_count)]
+
+
 def corpus(executable, root):
-    for count, query_count in [(1000, 16), (10000, 2)]:
-        scope = root / str(count)
-        scope.mkdir()
-        for i in range(count):
-            # Sparse, distinct hits allow exact comparison with unsorted single searches under their limits.
-            folder = scope / str(i // 100)
-            if i % 100 == 0:
-                folder.mkdir()
-            (folder / f"{i}.py").write_bytes(f"hit{i}\n".encode() if i < query_count else b"pass\n")
-        queries = [query(str(i), f'((identifier) @n (#eq? @n "hit{i}"))') for i in range(query_count)]
+    for count, query_count in CORPUS_CASES:
+        for path, data in corpus_files(count, query_count):
+            write(root, path, data)
         with session(executable, root) as call:
-            stats = equivalent(call, queries, [scope.name, f"{scope.name}/0", scope.name],
+            stats = equivalent(call, corpus_queries(query_count), [str(count), f"{count}/0", str(count)],
                                {str(i): (f"{count}/0/{i}.py", f"hit{i}") for i in range(query_count)})
             assert stats == dict(filesVisited=count, filesRead=count, filesParsed=count,
                                  treeBuilds=count, queryExecutions=count * query_count)

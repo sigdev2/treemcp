@@ -1,4 +1,5 @@
 #include "Query.hpp"
+#include "SearchProfile.hpp"
 
 #include <QByteArray>
 
@@ -163,6 +164,7 @@ bool Predicate::accepts(const TSQueryMatch& match, QByteArrayView source, const 
 
 std::optional<QueryDiagnostic> CompiledQuery::compile(const TSLanguage* language, const QString& source)
 {
+    const SearchProfile::Timer compile(SearchProfile::Phase::Compile);
     predicates.clear();
     hasRepeatedCapture = false;
     query.reset();

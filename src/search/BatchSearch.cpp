@@ -7,8 +7,10 @@
 #include "WorkspaceFilter.hpp"
 
 #include "Scheduler.hpp"
+#include "SearchProfile.hpp"
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QVarLengthArray>
 
 #include <algorithm>
 #include <map>
@@ -77,10 +79,14 @@ QString clipped(const QString& string)
 }
 
 struct Batch {
+    static constexpr size_t DEFAULT_BUFFER_MATCHES = 16;
+    static constexpr qsizetype BUFFER_BYTES = 64 * 1024;
+
     std::vector<Item> items;
     // The item vector is sized before compilation and never resized.
     std::map<const LanguageDefinition*, std::vector<Item*>> groups;
     const int maxMatches;
+    const size_t bufferMatches;
     const SearchStop stop;
     std::mutex mutex;
     size_t retained = 0;
@@ -95,8 +101,30 @@ struct Batch {
     Batch(size_t count, int limit, SearchStop observer) :
             items(count),
             maxMatches(limit),
+            bufferMatches(matchBufferSize()),
             stop(observer)
     {
+    }
+
+    static size_t matchBufferSize()
+    {
+#ifdef TREEMCP_SEARCH_PROFILE
+        bool valid = false;
+        const int configured = qEnvironmentVariableIntValue("TREEMCP_BATCH_BUFFER_MATCHES", &valid);
+        if (valid && configured >= 1 && configured <= 64) {
+            return static_cast<size_t>(configured);
+        }
+#endif
+        return DEFAULT_BUFFER_MATCHES;
+    }
+
+    static qsizetype matchBytes(const SearchMatch& match)
+    {
+        qsizetype size = qsizetype { sizeof(SearchMatch) } + match.pathBytes.size() + 2 * match.path.size();
+        for (const auto& capture : match.captures) {
+            size += qsizetype { sizeof(MatchCapture) } + capture.text.size();
+        }
+        return size;
     }
 
     // Called under mutex. The global prefix always gives earlier items first claim on the budget.
@@ -130,6 +158,7 @@ struct Batch {
     void searchFile(const QString& path, const QByteArray& source)
     {
         const QByteArray pathBytes = path.toUtf8();
+        QVarLengthArray<SearchMatch, 4> buffered;
         bool countedFile = false;
         for (const auto& [grammar, queries] : groups) {
             if (stop.requested()) {
@@ -163,19 +192,48 @@ struct Batch {
                 }
                 const TSNode root = ts_tree_root_node(tree.get());
                 bool incomplete = false;
+                qsizetype bufferedBytes = 0;
+                const auto flush = [&] {
+                    for (auto& entry : buffered) {
+                        collect(*item, std::move(entry));
+                    }
+                    buffered.clear();
+                    bufferedBytes = 0;
+                };
                 const auto error = visitMatches(
                     root,
                     source,
                     item->compiled,
-                    [&](const TSQueryMatch& match) {
+                    [&](const TSQueryMatch& match, bool) {
+                        const SearchProfile::Timer collectTime(SearchProfile::Phase::Collect);
                         auto entry = copyMatch(match, item->compiled.query.get(), source, path, pathBytes);
-                        std::lock_guard lock(mutex);
-                        collect(*item, std::move(entry));
+                        const auto bytes = bufferMatches == 1 ? 0 : matchBytes(entry);
+                        const bool direct = bufferMatches == 1 || bytes > BUFFER_BYTES;
+                        if (direct || static_cast<size_t>(buffered.size()) == bufferMatches ||
+                            bytes > BUFFER_BYTES - bufferedBytes)
+                        {
+                            SearchProfile::Timer wait(SearchProfile::Phase::CollectLock);
+                            std::lock_guard lock(mutex);
+                            wait.finish();
+                            flush();
+                            if (direct) {
+                                collect(*item, std::move(entry));
+                                return true;
+                            }
+                        }
+                        buffered.push_back(std::move(entry));
+                        bufferedBytes += bytes;
                         return true;
                     },
                     incomplete,
                     stop);
+                SearchProfile::Timer wait(SearchProfile::Phase::CollectLock, !buffered.empty());
                 std::lock_guard lock(mutex);
+                wait.finish();
+                if (!buffered.empty()) {
+                    const SearchProfile::Timer collectTime(SearchProfile::Phase::Collect);
+                    flush();
+                }
                 ++executions;
                 item->syntaxErrors |= ts_node_has_error(root);
                 item->incomplete |= incomplete || !error.isEmpty();
@@ -244,7 +302,7 @@ struct Batch {
         QJsonObject data = metadata();
         // Charge the empty envelope (including LF), then each entry in both structured and escaped text content.
         qsizetype remaining =
-            byteLimit - QJsonDocument(Tools::dataReply(id, data)).toJson(QJsonDocument::Compact).size() - 1;
+            byteLimit - SearchProfile::compactJson(QJsonDocument(Tools::dataReply(id, data))).size() - 1;
         QJsonArray entries = data.value("items").toArray();
         bool full = false;
         bool truncated = false;
@@ -259,10 +317,10 @@ struct Batch {
                 }
                 if (!full) {
                     const auto entry = match.json();
-                    const auto bytes = QJsonDocument(entry).toJson(QJsonDocument::Compact);
+                    const auto bytes = SearchProfile::compactJson(QJsonDocument(entry));
                     const QJsonArray quoted { QString::fromUtf8(bytes) };
-                    const qsizetype cost = bytes.size() + QJsonDocument(quoted).toJson(QJsonDocument::Compact).size() -
-                        4 + (matches.isEmpty() ? 0 : 2);
+                    const qsizetype cost = bytes.size() + SearchProfile::compactJson(QJsonDocument(quoted)).size() - 4 +
+                        (matches.isEmpty() ? 0 : 2);
                     if (cost <= remaining) {
                         remaining -= cost;
                         matches.append(entry);
@@ -343,7 +401,8 @@ SingleFile::Result batchSearch(
     const QJsonObject& arguments,
     const Workspace& workspace,
     const SearchStop& stop,
-    Scheduler& scheduler)
+    Scheduler& scheduler,
+    FileJobs& files)
 {
     const auto queries = arguments.value("queries").toArray();
     Batch batch(static_cast<size_t>(queries.size()), arguments.value("maxTotalMatches").toInt(), stop);
@@ -378,7 +437,7 @@ SingleFile::Result batchSearch(
         scope,
         [&](const QString& path, SelectedFile selected) {
             auto file = std::make_shared<SelectedFile>(std::move(selected));
-            return scheduler.submitFile(stop, [&batch, &stop, path, file = std::move(file)] {
+            return scheduler.submitFile(files, stop, [&batch, &stop, path, file = std::move(file)] {
                 if (stop.requested()) {
                     return;
                 }
@@ -401,9 +460,9 @@ SingleFile::Result batchSearch(
         },
         limits);
     if (stop.requested()) {
-        scheduler.cancelFiles();
+        scheduler.cancelFiles(files);
     }
-    scheduler.joinFiles();
+    scheduler.joinFiles(files);
     if (stop.cancelled.load()) {
         return QStringLiteral("Batch cancelled");
     }

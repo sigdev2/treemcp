@@ -1,4 +1,5 @@
 #include "Tools.hpp"
+#include "SearchProfile.hpp"
 
 #include "BatchSearch.hpp"
 #include "JsonRpc.hpp"
@@ -152,7 +153,7 @@ QJsonObject dataReply(const QJsonValue& id, const QJsonObject& data)
     return JsonRpc::success(
         id,
         { { "structuredContent", data },
-          { "content", textContent(QString::fromUtf8(QJsonDocument(data).toJson(QJsonDocument::Compact))) } });
+          { "content", textContent(QString::fromUtf8(SearchProfile::compactJson(QJsonDocument(data)))) } });
 }
 
 QJsonObject list(const QJsonValue& id, const QJsonObject& params)
@@ -193,14 +194,16 @@ QJsonObject execute(
     const QJsonObject& arguments,
     const Workspace& workspace,
     const SearchStop& stop,
-    Scheduler& scheduler)
+    Scheduler& scheduler,
+    FileJobs* files)
 {
+    const SearchProfile::Request profile(id, name);
     const bool batch = name == "batch_search";
     if (!batch && stop.requested()) {
         return deadlineReply(id);
     }
-    const auto result = batch ? batchSearch(id, arguments, workspace, stop, scheduler)
-                              : SingleFile::run(name, arguments, workspace, stop);
+    const auto result = batch ? batchSearch(id, arguments, workspace, stop, scheduler, *files)
+                              : SingleFile::run(name, arguments, workspace, stop, scheduler, files);
     if (stop.cancelled.load()) {
         return {};
     }
@@ -212,7 +215,7 @@ QJsonObject execute(
     }
     const auto reply = dataReply(id, std::get<QJsonObject>(result));
     constexpr qsizetype MAX_RESPONSE_BYTES = 1024 * 1024;
-    if (!batch && QJsonDocument(reply).toJson(QJsonDocument::Compact).size() + 1 > MAX_RESPONSE_BYTES) {
+    if (!batch && SearchProfile::compactJson(QJsonDocument(reply)).size() + 1 > MAX_RESPONSE_BYTES) {
         return toolError(id, QStringLiteral("Response exceeds byte limit"));
     }
     return reply;

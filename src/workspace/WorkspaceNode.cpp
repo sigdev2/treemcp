@@ -7,7 +7,8 @@ namespace treemcp {
 
 WorkspaceNode::WorkspaceNode(WorkspaceNode&& other) noexcept :
         nodeKind(std::exchange(other.nodeKind, NodeKind::Error)),
-        native(std::exchange(other.native, -1))
+        native(std::exchange(other.native, -1)),
+        initialBytes(other.initialBytes)
 {
 }
 

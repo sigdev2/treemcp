@@ -40,7 +40,8 @@ private:
         std::atomic_bool cancelled = false;
         Clock::time_point deadline;
         int cost;
-        bool batch;
+        FileJobs files;
+        std::thread* coordinator = nullptr;
         std::optional<QJsonObject> reply; // Guarded by completionMutex until workers join.
     };
     std::optional<QJsonObject>
@@ -63,7 +64,8 @@ private:
     ReplyWriter publish;
     Scheduler scheduler;
     bool closed = false;
-    std::thread coordinator;
+    std::thread batchCoordinator;
+    std::thread structuralCoordinator;
     QHash<QJsonValue, std::shared_ptr<Work>> active;
     std::mutex completionMutex;
     QTimer deadlines;

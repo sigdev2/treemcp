@@ -9,6 +9,7 @@ namespace treemcp {
 struct Workspace;
 struct SearchStop;
 class Scheduler;
+class FileJobs;
 } // namespace treemcp
 
 namespace treemcp::Tools {
@@ -24,7 +25,8 @@ QJsonObject execute(
     const QJsonObject& arguments,
     const Workspace& workspace,
     const SearchStop& stop,
-    Scheduler& scheduler);
+    Scheduler& scheduler,
+    FileJobs* files);
 
 } // namespace treemcp::Tools
 #endif // TREEMCP_TOOLS_HPP
